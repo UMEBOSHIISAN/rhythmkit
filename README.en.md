@@ -12,8 +12,10 @@
 - **Practice mode**: notes stop at the judge line and wait until you play the correct pitch (no misses, take as long as you like). This is the main mode for actual learning.
 - **Rhythm mode**: standard rhythm-game judging (PERFECT/GOOD/"almost!", combo, rank S–C). **No game over** — you always play through to the end and the result screen is always positive (the design goal is practice, not failure).
 - **Tuner mode**: shows the detected note name plus a cents meter. Usable for tuning the instrument.
-- **Finger position guide** (v1.1): a fretboard diagram (a keyboard diagram for piano) is shown at all times below the judge line. The note to play right now pulses with the fret number on it (open string reads "open" in Japanese); the next note is shown as a ghost outline dot. String colors match the lane colors above.
-- Best-score 🏆 saved to `localStorage`, combo cheers, confetti on the result screen.
+- **Fingering guide panel** (v1.3): always shows *which string, which fret, which finger*: ① a fretboard diagram with realistic string thickness and a pulsing dot (with fret number) on the position to press, ② **a hand illustration where only the finger to use lights up** (one-finger-per-fret fingering), ③ a plain-words instruction line like "pink string, 2nd fret, middle finger!". Responsive: right-side 45% column on landscape screens, bottom 30% band on portrait. Piano shows a keyboard diagram instead.
+- **Real-time detected-note display** (v1.2): shows the note you're actually playing ("now: A") — green when it matches the target, soft orange when it doesn't.
+- **Automatic timing calibration** (v1.2): play along with 8 metronome ticks and the app measures and compensates your mic latency (a manual slider also exists).
+- Best-score 🏆 and settings saved to `localStorage`, combo cheers, confetti on the result screen.
 - Three input methods: **live mic performance** (pitch detection, down to the bass's lowest note E1 = 41.2 Hz) / on-screen tap / keyboard (for development).
 - Falls back automatically to tap play in environments where the mic isn't available.
 - **Privacy**: mic audio is only pitch-analyzed on-device — nothing is recorded, stored, or sent anywhere. The app makes zero network calls (verifiable with `grep "http" dist/`).
@@ -124,7 +126,7 @@ node tests/test_waitclock.js    # Practice-mode clock stop/resume
 node tests/test_boot_smoke.js   # DOM-stub boot smoke test on the built output
 ```
 
-## Verification status (2026-07-11, v1.1)
+## Verification status (2026-07-11, v1.3)
 
 - Pitch-detection accuracy: near-0Hz error and clarity 1.0 on synthetic 41.2/55/110/220Hz waves
 - Content consistency: all mappings pass for 3 instruments × 10 songs / 717 notes (fretboard display range fret ≤ 7 guaranteed)
