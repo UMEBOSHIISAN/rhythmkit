@@ -100,9 +100,10 @@ class Highway {
     const n = lanes.length;
     const isPitchPanel = this.judgeMode === 'pitch';
     const isLandscape = this.w > this.h; // 向きはfit()のたびにここで再判定（resize/orientationchange追従）
-    // 横長×pitchのみハイウェイ幅をcontentWに縮め、残りを右パネルに回す。
-    // それ以外（縦長×pitch=下30%帯／laneモード=パネル無し）はハイウェイが全幅を使う。
-    this.contentW = (isPitchPanel && isLandscape) ? this.w * RK_PANEL_LANDSCAPE_CONTENT_RATIO : this.w;
+    // 横長ならモードを問わずハイウェイ幅をcontentWに縮め、残りを右の運指ガイドパネルに回す
+    // （human FB 2026-07-11「Macで指の場所が出ない」— タップ演奏の子にも押さえ方は見せる）。
+    // 縦長は pitch=下30%帯 / lane=タッチボタンが下を占有するためパネル無し。
+    this.contentW = isLandscape ? this.w * RK_PANEL_LANDSCAPE_CONTENT_RATIO : this.w;
     const laneW = this.contentW / n;
     this.laneX = lanes.map((l, i) => (i + 0.5) * laneW);
     this.laneW = laneW;
@@ -113,13 +114,14 @@ class Highway {
     this.laneButtons = lanes.map((l, i) => ({
       laneIndex: i, x: i * laneW, y: this.judgeY + 6, w: laneW, h: btnH,
     }));
-    // 運指ガイドパネルの領域（FingerBoard.drawへそのまま渡す）。laneモードはnull=非表示。
-    if (!isPitchPanel){
-      this.panelRegion = null;
-    } else if (isLandscape){
+    // 運指ガイドパネルの領域（FingerBoard.drawへそのまま渡す）。
+    // 横長=両モードとも右カラム / 縦長×pitch=下帯 / 縦長×lane=null（タッチボタン優先）。
+    if (isLandscape){
       this.panelRegion = { x: this.contentW, y: 0, w: Math.max(1, this.w - this.contentW), h: this.h };
-    } else {
+    } else if (isPitchPanel){
       this.panelRegion = { x: 0, y: this.judgeY, w: this.w, h: Math.max(1, this.h - this.judgeY) };
+    } else {
+      this.panelRegion = null;
     }
   }
   // songTimeSec時点でtargetSecのノートがどのy座標にいるか（判定線=judgeYに来る時刻がtargetSec）

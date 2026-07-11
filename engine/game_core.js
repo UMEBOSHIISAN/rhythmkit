@@ -817,12 +817,14 @@ class RhythmGame {
         this._detectedNote = null;
       }
       drawRkDetectedNote(ctx, this.highway.contentW / 2, this.highway.judgeY - 16, this._detectedNote, this.naming);
-      if (this.fingerboard && this.highway.panelRegion){
-        const current = this._fingerboardPos(this.judge.cursor);
-        const next = this._fingerboardPos(this._nextPendingIndex(this.judge.cursor + 1));
-        const pr = this.highway.panelRegion;
-        this.fingerboard.draw(ctx, pr.x, pr.y, pr.w, pr.h, current, next, theme);
-      }
+    }
+    // 運指ガイドはpanelRegionがあれば両判定モードで描く（横長ならタップ演奏でも
+    // 押さえ方を見せる。human FB 2026-07-11「Macで指の場所が出ない」対応）。
+    if (this.fingerboard && this.highway.panelRegion){
+      const current = this._fingerboardPos(this.judge.cursor);
+      const next = this._fingerboardPos(this._nextPendingIndex(this.judge.cursor + 1));
+      const pr = this.highway.panelRegion;
+      this.fingerboard.draw(ctx, pr.x, pr.y, pr.w, pr.h, current, next, theme);
     }
     if (!this.isWaitMode){
       const totalSec = this._lastNoteTargetSec() + 2;
