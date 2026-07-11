@@ -1,7 +1,5 @@
 # rhythmkit — 落ち音符・楽器学習ゲーム基盤
 
-![test](https://github.com/UMEBOSHIISAN/rhythmkit/actions/workflows/test.yml/badge.svg)
-
 > **English**: [README.en.md](README.en.md)
 
 > ビートマニア式に音符が落ちてきて、**本物の楽器の音をマイクで拾って**正しい音程を弾くと当たる、子供向け楽器学習ゲームの基盤。

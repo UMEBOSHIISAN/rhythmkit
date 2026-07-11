@@ -14,7 +14,8 @@
  *   unlock()/getCtx()/playSfx()/metronome（audio_synth.js のグローバル関数・
  *   存在すれば使う＝未実装でもクラッシュしない防御コーディング）,
  *   Highway/FingerBoard/JudgeEngine（highway.js/fingerboard.js/judge.js・
- *   結合順序で本ファイルより前。FingerBoardはpitchモード中のみ判定線下に
+ *   結合順序で本ファイルより前。FingerBoardはpitchモード中のみ、highway.panelRegion
+ *   （縦長=判定線下30%帯／横長=右45%全高。向きはHighwayが自分のw/hから判定）に
  *   押さえ位置ガイドを描く。instrument.display未定義/未知typeなら自然に何も描かない）,
  *   drawRkScoreHud等（hud.js・結合順序で本ファイルより前）。
  *   lane modeのタッチボタンは input_router.js の attachTouch(el, lanes) が
@@ -569,6 +570,9 @@ class RhythmGame {
       this.highway.setNaming(this.naming);
       this.highway.fit();
     }
+    // v1.3: pitchモードは判定線を0.70に上げ画面下30%を運指ガイドパネルに空ける。
+    // laneモードは従来どおり0.82（タッチボタンのレイアウトを変えない）。
+    if (this.highway.setJudgeMode) this.highway.setJudgeMode(this.judgeMode);
     if (typeof FingerBoard !== 'undefined'){
       if (!this.fingerboard) this.fingerboard = new FingerBoard(this.instrument, this.naming);
       else {
@@ -711,25 +715,25 @@ class RhythmGame {
     drawRkScoreHud(ctx, 12, 12, this.judge.score, this.judge.combo);
     if (this.judgeMode === 'pitch'){
       const levelMin = (this.instrument.mic && this.instrument.mic.levelMin) || 0;
-      drawRkMicMeter(ctx, this.highway.w - 132, 12, 120, 14, this._micLevel, levelMin);
+      // contentW基準（横長×pitch時はハイウェイ自体が55%に縮むため、右パネルにかぶらないよう
+      // ハイウェイ自身の幅の中で右寄せ/中央寄せする。縦長/laneはcontentW===wで従来どおり）。
+      drawRkMicMeter(ctx, this.highway.contentW - 132, 12, 120, 14, this._micLevel, levelMin);
       // 0.5秒pitchイベントが無ければ表示を消す（ev.tと同じwall clock系列=performance.now()で判定）
       if (this._detectedNote && (this._lastPitchEventAt == null
           || (performance.now() / 1000 - this._lastPitchEventAt) > 0.5)){
         this._detectedNote = null;
       }
-      drawRkDetectedNote(ctx, this.highway.w / 2, this.highway.judgeY - 16, this._detectedNote, this.naming);
-      if (this.fingerboard){
+      drawRkDetectedNote(ctx, this.highway.contentW / 2, this.highway.judgeY - 16, this._detectedNote, this.naming);
+      if (this.fingerboard && this.highway.panelRegion){
         const current = this._fingerboardPos(this.judge.cursor);
         const next = this._fingerboardPos(this._nextPendingIndex(this.judge.cursor + 1));
-        this.fingerboard.draw(
-          ctx, 0, this.highway.judgeY, this.highway.w, this.highway.h - this.highway.judgeY,
-          current, next, theme
-        );
+        const pr = this.highway.panelRegion;
+        this.fingerboard.draw(ctx, pr.x, pr.y, pr.w, pr.h, current, next, theme);
       }
     }
     if (!this.isWaitMode){
       const totalSec = this._lastNoteTargetSec() + 2;
-      drawRkProgressBar(ctx, 12, this.highway.h - 14, this.highway.w - 24, Math.max(0, songTimeSec), totalSec);
+      drawRkProgressBar(ctx, 12, this.highway.h - 14, this.highway.contentW - 24, Math.max(0, songTimeSec), totalSec);
     }
   }
 

@@ -3,13 +3,15 @@ const INSTRUMENT_GUITAR = {
   judgeModes: ['pitch', 'lane'],
   defaultJudgeMode: 'pitch',
   // TAB譜と同じ並び。上から e B G D A E（標準チューニング）
+  // colorName/thicknessはTAB表記の弦番号(e=1〜E=6)から算出。thicknessは1-4にクランプするため
+  // A(5相当)/E(6相当)はどちらも4（規約どおり。SPEC v1.3「e=1..E=6相当は thickness 1-4 にクランプ」）。
   lanes: [
-    { id: 'e', label: 'e(高いミ)', openMidi: 64, color: '#ff8787' },
-    { id: 'B', label: 'B(シ)', openMidi: 59, color: '#ffa94d' },
-    { id: 'G', label: 'G(ソ)', openMidi: 55, color: '#ffe066' },
-    { id: 'D', label: 'D(レ)', openMidi: 50, color: '#69db7c' },
-    { id: 'A', label: 'A(ラ)', openMidi: 45, color: '#4dabf7' },
-    { id: 'E', label: 'E(ミ)', openMidi: 40, color: '#9775fa' },
+    { id: 'e', label: 'e(高いミ)', openMidi: 64, color: '#ff8787', colorName: 'あか', thickness: 1 },
+    { id: 'B', label: 'B(シ)', openMidi: 59, color: '#ffa94d', colorName: 'オレンジ', thickness: 2 },
+    { id: 'G', label: 'G(ソ)', openMidi: 55, color: '#ffe066', colorName: 'きいろ', thickness: 3 },
+    { id: 'D', label: 'D(レ)', openMidi: 50, color: '#69db7c', colorName: 'みどり', thickness: 4 },
+    { id: 'A', label: 'A(ラ)', openMidi: 45, color: '#4dabf7', colorName: 'あお', thickness: 4 },
+    { id: 'E', label: 'E(ミ)', openMidi: 40, color: '#9775fa', colorName: 'むらさき', thickness: 4 },
   ],
   midiRange: { min: 40, max: 76 },
   mic: { fmin: 70, fmax: 1400, clarityMin: 0.83, levelMin: 0.01 },

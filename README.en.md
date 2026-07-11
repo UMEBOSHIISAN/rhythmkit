@@ -1,7 +1,5 @@
 # rhythmkit — a falling-note kit for learning real instruments
 
-![test](https://github.com/UMEBOSHIISAN/rhythmkit/actions/workflows/test.yml/badge.svg)
-
 > **日本語**: [README.md](README.md)
 
 > Beatmania-style notes fall down the screen, and you hit them by playing the **correct pitch on a real instrument** picked up through the microphone — a kids' instrument-learning game kit. The first game built on it is "Ume Bass!" (bass learning).

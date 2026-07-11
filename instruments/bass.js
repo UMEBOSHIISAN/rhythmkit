@@ -4,10 +4,10 @@ const INSTRUMENT_BASS = {
   defaultJudgeMode: 'pitch',
   // TAB譜と同じ並び。上から G D A E
   lanes: [
-    { id: 'G', label: 'G(ソ)', openMidi: 43, color: '#f6c945' },
-    { id: 'D', label: 'D(レ)', openMidi: 38, color: '#6fd66f' },
-    { id: 'A', label: 'A(ラ)', openMidi: 33, color: '#5db4f0' },
-    { id: 'E', label: 'E(ミ)', openMidi: 28, color: '#ef8bb0' },
+    { id: 'G', label: 'G(ソ)', openMidi: 43, color: '#f6c945', colorName: 'きいろ', thickness: 1 },
+    { id: 'D', label: 'D(レ)', openMidi: 38, color: '#6fd66f', colorName: 'みどり', thickness: 2 },
+    { id: 'A', label: 'A(ラ)', openMidi: 33, color: '#5db4f0', colorName: 'あお', thickness: 3 },
+    { id: 'E', label: 'E(ミ)', openMidi: 28, color: '#ef8bb0', colorName: 'ピンク', thickness: 4 },
   ],
   midiRange: { min: 28, max: 55 },
   mic: { fmin: 35, fmax: 420, clarityMin: 0.83, levelMin: 0.01 },

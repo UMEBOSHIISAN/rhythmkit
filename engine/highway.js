@@ -13,6 +13,16 @@
  *   .fit() / .draw(runners, songTimeSec, theme) / .updateFx(dt)
  *   .spawnHitFx(laneIndex, rank) / .spawnMissFx(laneIndex) / .spawnCheerFx(text)
  *   .spawnComboPulse() / .laneButtons
+ *   .setJudgeMode('pitch'|'lane') — v1.3: 判定線比率/レイアウトをモードと画面の向きで切り替える。
+ *     pitchモード:
+ *       - 縦長（w<=h）: 判定線0.70・下30%帯を運指ガイドパネルに（横並び配置。contentW=全幅）
+ *       - 横長（w>h・Mac/iPad横）: 判定線0.82のまま・ハイウェイ自体をcontentW=55%に縮め、
+ *         右45%全高を運指ガイドパネル領域(panelRegion)にする
+ *     laneモード: 常に判定線0.82・contentW=全幅・panelRegion=null（両向き共通・従来どおり）。
+ *     既定値は'lane'（tuner等、明示的にpitchが設定されない画面で従来レイアウトを保つ防御）。
+ *     向きの判定はfit()のたびに再計算する（resize/orientationchangeで自動追従）。
+ *   .contentW — ハイウェイ自身の描画幅（横長×pitch時のみ縮小。他は.wと同じ）
+ *   .panelRegion — {x,y,w,h}|null。pitchモード時のみ非null（FingerBoard.drawへそのまま渡す領域）
  */
 
 // 丸角矩形パス（hud.js からも共有で使う）
@@ -37,7 +47,12 @@ function rkNoteName(midi, naming){
 }
 
 const RK_LOOKAHEAD_SEC = 4;      // 先読み表示4秒ぶん
-const RK_JUDGE_LINE_RATIO = 0.82; // 判定線は下から18% = 上から82%
+// 判定線比率（v1.3: pitchモード縦長は下30%を運指ガイドパネルに空けるため0.70に引き上げ。
+// pitchモード横長は判定線はそのまま0.82で、幅の方をcontentWで縮めて右にパネルを空ける。
+// laneモードは常に0.82＝下18%＝タッチボタン列のレイアウトを維持）。
+const RK_JUDGE_LINE_RATIO_PITCH = 0.70;
+const RK_JUDGE_LINE_RATIO_LANE = 0.82;
+const RK_PANEL_LANDSCAPE_CONTENT_RATIO = 0.55; // 横長×pitch時、ハイウェイに残す幅の割合（残り45%がパネル）
 
 class Highway {
   constructor(canvas, instrument, naming){
@@ -48,6 +63,7 @@ class Highway {
     this.hitFx = []; // {x, y, timer, label}
     this.comboPulse = 0; // コンボ5刻み到達時の画面パルス残り秒（0で無効）
     this.laneButtons = [];
+    this.judgeMode = 'lane'; // 既定lane（tuner等、setJudgeModeが呼ばれない画面での安全側デフォルト）
     this.fit();
   }
   setInstrument(instrument){
@@ -55,6 +71,11 @@ class Highway {
     this._layoutLanes();
   }
   setNaming(naming){ this.naming = naming; }
+  // game_core._startPlay()がjudgeMode確定後に呼ぶ。lane以外は全部'lane'扱い（安全側）。
+  setJudgeMode(mode){
+    this.judgeMode = mode === 'pitch' ? 'pitch' : 'lane';
+    this._layoutLanes();
+  }
   fit(){
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
     const rect = this.canvas.getBoundingClientRect();
@@ -69,14 +90,29 @@ class Highway {
     if (!this.instrument) return;
     const lanes = this.instrument.lanes;
     const n = lanes.length;
-    const laneW = this.w / n;
+    const isPitchPanel = this.judgeMode === 'pitch';
+    const isLandscape = this.w > this.h; // 向きはfit()のたびにここで再判定（resize/orientationchange追従）
+    // 横長×pitchのみハイウェイ幅をcontentWに縮め、残りを右パネルに回す。
+    // それ以外（縦長×pitch=下30%帯／laneモード=パネル無し）はハイウェイが全幅を使う。
+    this.contentW = (isPitchPanel && isLandscape) ? this.w * RK_PANEL_LANDSCAPE_CONTENT_RATIO : this.w;
+    const laneW = this.contentW / n;
     this.laneX = lanes.map((l, i) => (i + 0.5) * laneW);
     this.laneW = laneW;
-    this.judgeY = this.h * RK_JUDGE_LINE_RATIO;
+    // 縦長×pitchのみ判定線比率を0.70に上げる。横長×pitch/laneモードは0.82のまま
+    // （横長はパネルを幅で確保するため判定線の高さ比率は変えない）。
+    this.judgeY = this.h * ((isPitchPanel && !isLandscape) ? RK_JUDGE_LINE_RATIO_PITCH : RK_JUDGE_LINE_RATIO_LANE);
     const btnH = Math.min(64, Math.max(36, this.h - this.judgeY - 8));
     this.laneButtons = lanes.map((l, i) => ({
       laneIndex: i, x: i * laneW, y: this.judgeY + 6, w: laneW, h: btnH,
     }));
+    // 運指ガイドパネルの領域（FingerBoard.drawへそのまま渡す）。laneモードはnull=非表示。
+    if (!isPitchPanel){
+      this.panelRegion = null;
+    } else if (isLandscape){
+      this.panelRegion = { x: this.contentW, y: 0, w: Math.max(1, this.w - this.contentW), h: this.h };
+    } else {
+      this.panelRegion = { x: 0, y: this.judgeY, w: this.w, h: Math.max(1, this.h - this.judgeY) };
+    }
   }
   // songTimeSec時点でtargetSecのノートがどのy座標にいるか（判定線=judgeYに来る時刻がtargetSec）
   _yFor(targetSec, songTimeSec){
@@ -93,7 +129,8 @@ class Highway {
   // テキストだけを画面中央上寄りに大きくポップさせる。既存のhitFx更新/描画パイプラインに相乗りする。
   spawnCheerFx(text){
     if (!text) return;
-    this.hitFx.push({ x: this.w / 2, y: this.judgeY * 0.4, timer: 0.7, ring: 0, label: text, cheer: true });
+    // contentW中心（横長×pitch時は右パネルにかぶらないよう、ハイウェイ自身の幅の中心に出す）
+    this.hitFx.push({ x: this.contentW / 2, y: this.judgeY * 0.4, timer: 0.7, ring: 0, label: text, cheer: true });
   }
   // MISS演出（練習寄り: 「おしい！」の柔らかいポップ。リングは出さず責める見た目にしない）
   spawnMissFx(laneIndex){
@@ -147,16 +184,17 @@ class Highway {
       const x = i * this.laneW;
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, this.judgeY); ctx.stroke();
     }
-    // 判定線（グロー: shadowBlurは高コストなので、低alphaの太線を下敷きにして重ね描きする）
+    // 判定線（グロー: shadowBlurは高コストなので、低alphaの太線を下敷きにして重ね描きする）。
+    // contentWまで（横長×pitch時は右パネル領域に判定線を伸ばさない）。
     ctx.save();
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = theme.judgeLine || '#ffd34d';
     ctx.lineWidth = 10;
-    ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.w, this.judgeY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.contentW, this.judgeY); ctx.stroke();
     ctx.restore();
     ctx.strokeStyle = theme.judgeLine || '#ffd34d';
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.w, this.judgeY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.contentW, this.judgeY); ctx.stroke();
 
     // ノート
     for (const r of runners){
