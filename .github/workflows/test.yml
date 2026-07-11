@@ -1,0 +1,22 @@
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/test_pitch.js
+      - run: node tests/test_content.js
+      - run: node tests/test_smoke_judge.js
+      - run: node tests/test_waitclock.js
+      - run: python3 build.py umebass
+      - run: node tests/test_boot_smoke.js
+      - name: build determinism
+        run: |
+          h1=$(sha256sum dist/umebass/index.html | cut -d' ' -f1)
+          python3 build.py umebass
+          h2=$(sha256sum dist/umebass/index.html | cut -d' ' -f1)
+          test "$h1" = "$h2"
