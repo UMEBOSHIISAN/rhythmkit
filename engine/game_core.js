@@ -185,6 +185,8 @@ class RhythmGame {
     on('rk-btn-calib-start', () => this._toCalib());
     on('rk-btn-calib-back', () => this._onCalibBack());
     on('rk-btn-calib-retry', () => this._startCalibRun());
+    on('rk-btn-tut-ok', () => this._onTutorialOk());
+    on('rk-btn-tut-view', () => this._showTutorial(null));
 
     const slider = document.getElementById('rk-offset-slider');
     if (slider){
@@ -209,6 +211,50 @@ class RhythmGame {
     if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
     this._renderTitleScreen();
     this._showScreen('rk-title');
+    this._startTitleBgm();
+  }
+
+  // v2.0: title画面のBGM（GAME_DEF.titleBgmが8bit風ループを渡してくる想定・mic非使用画面のみ許可）。
+  // audio_synth.jsが未実装/未結合でもクラッシュしないtypeofガード。
+  _startTitleBgm(){
+    const bgm = this.gameDef.titleBgm;
+    if (bgm && typeof bgmStart === 'function') bgmStart(bgm);
+  }
+  _stopTitleBgm(){
+    if (typeof bgmStop === 'function') bgmStop();
+  }
+
+  // v2.0: あそびかたオーバーレイ（初回「はじめる」タップ時 or せっていからの再表示）。
+  // localStorage不可環境では「見た」判定を維持できないため、初回ブロックはせず素通しする
+  // （オーバーレイを毎回強制表示すると逆に体験を壊すため。試験環境(vm smoke)もこの経路で通す）。
+  _tutorialKey(){
+    return 'rk_tut_seen_' + this.gameDef.meta.id;
+  }
+  _hasTutorialSeen(){
+    try {
+      if (typeof localStorage === 'undefined') return true;
+      return localStorage.getItem(this._tutorialKey()) === '1';
+    } catch (e) {
+      return true;
+    }
+  }
+  // onDone: オーバーレイを閉じた直後に実行するコールバック（せっていからの再表示時はnull＝閉じるだけ）
+  _showTutorial(onDone){
+    this._tutorialOnDone = onDone || null;
+    const el = document.getElementById('rk-tutorial');
+    if (el && el.classList) el.classList.remove('rk-hidden');
+  }
+  _onTutorialOk(){
+    const el = document.getElementById('rk-tutorial');
+    if (el && el.classList) el.classList.add('rk-hidden');
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(this._tutorialKey(), '1');
+    } catch (e) {
+      // localStorage不可環境は無視
+    }
+    const cb = this._tutorialOnDone;
+    this._tutorialOnDone = null;
+    if (cb) cb();
   }
 
   _renderTitleScreen(){
@@ -217,6 +263,7 @@ class RhythmGame {
     if (titleEl) titleEl.textContent = def.meta.title;
     const subEl = document.getElementById('rk-game-subtitle');
     if (subEl) subEl.textContent = def.meta.subtitle || '';
+    this._drawMascotPreview();
 
     const instRow = document.getElementById('rk-instrument-row');
     if (instRow){
@@ -263,8 +310,16 @@ class RhythmGame {
         row.className = 'rk-song'
           + (chart.id === this.selectedChartId ? ' rk-active' : '')
           + (inRange ? '' : ' rk-disabled');
+        const left = document.createElement('span');
+        left.className = 'rk-song-left';
+        const emoji = document.createElement('span');
+        emoji.className = 'rk-song-emoji';
+        emoji.textContent = chart.emoji || '🎵';
         const title = document.createElement('span');
+        title.className = 'rk-song-title';
         title.textContent = chart.title;
+        left.appendChild(emoji);
+        left.appendChild(title);
         const right = document.createElement('span');
         right.className = 'rk-song-right';
         const stars = document.createElement('span');
@@ -278,7 +333,7 @@ class RhythmGame {
           bestEl.textContent = '🏆' + best;
           right.appendChild(bestEl);
         }
-        row.appendChild(title);
+        row.appendChild(left);
         row.appendChild(right);
         if (inRange){
           row.addEventListener('click', () => {
@@ -296,6 +351,30 @@ class RhythmGame {
     }
 
     this._renderNamingChips('rk-naming-row');
+  }
+
+  // v2.0: マスコット定義はGAME_DEF.theme.mascot（既存cheer/enableの置き場）を優先し、
+  // 見つからなければGAME_DEF.mascot直下も見る（並行実装側のフィールド配置ゆれを吸収する防御）。
+  _resolveMascotDef(){
+    const theme = this.gameDef.theme;
+    if (theme && theme.mascot && (theme.mascot.pixelmap || theme.mascot.name)) return theme.mascot;
+    return this.gameDef.mascot || (theme && theme.mascot) || null;
+  }
+
+  // タイトル画面の小窓にマスコットのドット絵を描く（pixel_art.js/rkDrawPixelmapが未実装の間は
+  // 何もしない＝クラッシュしない。要素がcanvas化されていない検証環境でも安全）。
+  _drawMascotPreview(){
+    const canvas = document.getElementById('rk-mascot-canvas');
+    if (!canvas || typeof canvas.getContext !== 'function') return;
+    const mascot = this._resolveMascotDef();
+    if (!mascot || !mascot.pixelmap || typeof rkDrawPixelmap !== 'function') return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || typeof ctx.clearRect !== 'function') return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const grid = mascot.pixelmap.grid || [];
+    const cols = grid.length ? grid[0].length : 1;
+    const cell = Math.max(1, Math.floor(canvas.width / Math.max(cols, 1)));
+    rkDrawPixelmap(ctx, 0, 0, cell, mascot.pixelmap);
   }
 
   _renderNamingChips(rowId){
@@ -371,6 +450,16 @@ class RhythmGame {
     if (typeof unlock === 'function') unlock();
     const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
     if (!instrument || !this.selectedChartId || !__RK_CHARTS[this.selectedChartId]) return;
+    if (!this._hasTutorialSeen()){
+      this._showTutorial(() => this._proceedStart());
+      return;
+    }
+    this._proceedStart();
+  }
+
+  _proceedStart(){
+    const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
+    if (!instrument || !this.selectedChartId || !__RK_CHARTS[this.selectedChartId]) return;
     this.instrument = instrument;
     this.selectedChart = __RK_CHARTS[this.selectedChartId];
     this.isWaitMode = this.selectedModeKey === 'wait';
@@ -389,6 +478,7 @@ class RhythmGame {
   // --- settings ---
   _toSettings(){
     this.mode = 'settings';
+    this._stopTitleBgm();
     this._renderNamingChips('rk-naming-row');
     this._showScreen('rk-settings');
   }
@@ -396,6 +486,7 @@ class RhythmGame {
   // --- micSetup ---
   async _toMicSetup(){
     this.mode = 'micSetup';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁（echoCancellation OFFでスピーカー音がマイクに乗り判定を汚染する）
     this._micLevel = 0;
     this._micSetupDetected = null;
     const msgEl = document.getElementById('rk-mic-message');
@@ -445,6 +536,7 @@ class RhythmGame {
   // offsetSecを推定する。設定画面から直行・「もどる」で設定に戻る。
   _toCalib(){
     this.mode = 'calib';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁
     this._showScreen('rk-calib');
     this._startCalibRun();
   }
@@ -561,6 +653,7 @@ class RhythmGame {
   // --- play ---
   _startPlay(){
     this.mode = 'play';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁（laneモードでも画面共通のため一律停止）
     this._showScreen(null);
     const canvas = document.getElementById('rk-canvas');
     if (!this.highway){
@@ -767,6 +860,7 @@ class RhythmGame {
   _toTuner(){
     if (typeof unlock === 'function') unlock();
     this.mode = 'tuner';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁
     this._tunerDetected = null;
     this._showScreen('rk-tuner');
     const canvas = document.getElementById('rk-canvas');

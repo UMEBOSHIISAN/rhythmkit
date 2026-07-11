@@ -4,7 +4,7 @@
 // open_strings → doremi → tulip → bunbun → frets123 → kirakira → mary → kaeru → walking → rock_riff
 
 registerChart({
-  id: 'open_strings', title: 'かいほうげんマスター', level: 1,
+  id: 'open_strings', title: 'かいほうげんマスター', level: 1, emoji: '🎸',
   bpm: 70, countInBeats: 4,
   // E1 A1 D2 G2 の開放弦を2拍ずつ×3周
   notes: [
@@ -25,7 +25,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'doremi', title: 'ドレミのやま', level: 1,
+  id: 'doremi', title: 'ドレミのやま', level: 1, emoji: '🎵',
   bpm: 80, countInBeats: 4,
   // C2メジャースケール上行 → 下行
   notes: [
@@ -49,7 +49,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'tulip', title: 'チューリップ', level: 1,
+  id: 'tulip', title: 'チューリップ', level: 1, emoji: '🌷',
   bpm: 85, countInBeats: 4,
   // ドレミ ドレミ ソミレドレミレ / ドレミ ドレミ ソミレドレミド（フレーズ末は2拍）
   notes: [
@@ -68,7 +68,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'bunbun', title: 'ぶんぶんぶん', level: 1,
+  id: 'bunbun', title: 'ぶんぶんぶん', level: 1, emoji: '🐝',
   bpm: 80, countInBeats: 4,
   // ソミミ ファレレ ドレミファソソソ / ソミミ ファレレ ドミソソド（フレーズ末は2拍）
   notes: [
@@ -87,7 +87,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'frets123', title: 'ゆびのたいそう', level: 2,
+  id: 'frets123', title: 'ゆびのたいそう', level: 2, emoji: '✋',
   bpm: 80, countInBeats: 4,
   // 各弦でフレット0→1→2→3→2→1→0。E弦から順にA D Gへ
   notes: [
@@ -124,7 +124,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'kirakira', title: 'きらきらぼし', level: 2,
+  id: 'kirakira', title: 'きらきらぼし', level: 2, emoji: '⭐',
   bpm: 90, countInBeats: 4,
   // CCGGAAG FFEEDDC GGFFEED GGFFEED CCGGAAG FFEEDDC（各フレーズ末は2拍）
   notes: [
@@ -145,7 +145,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'mary', title: 'メリーさんのひつじ', level: 2,
+  id: 'mary', title: 'メリーさんのひつじ', level: 2, emoji: '🐑',
   bpm: 95, countInBeats: 4,
   // ミレドレミミミ レレレ ミソソ / ミレドレミミミミ レレミレド（フレーズ末は2拍）
   notes: [
@@ -162,7 +162,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'kaeru', title: 'かえるのうた', level: 2,
+  id: 'kaeru', title: 'かえるのうた', level: 2, emoji: '🐸',
   bpm: 95, countInBeats: 4,
   // ドレミファミレド ミファソラソファミ ドドドド ドドレレミミファファ ミレド
   notes: [
@@ -181,7 +181,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'walking', title: 'はじめてのウォーキング', level: 3,
+  id: 'walking', title: 'はじめてのウォーキング', level: 3, emoji: '🚶',
   bpm: 100, countInBeats: 4,
   // C(36,43,45,43) F(41,48,50,48) G(43,47,50,47) C(36,43,45,43)。最後にmidi36を2拍
   // fretboard表示のためfret<=7に収まる音域で書く（C2〜1オクターブ上のC3まで）
@@ -196,7 +196,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'rock_riff', title: 'ロックのきほん', level: 3,
+  id: 'rock_riff', title: 'ロックのきほん', level: 3, emoji: '🤘',
   bpm: 110, countInBeats: 4,
   // E1の8分刻み8発 → G1 → A1 変化のシンプルなロックライン（2周）
   notes: [

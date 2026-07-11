@@ -28,6 +28,10 @@
  *     current/next: {laneIndex, fret, midi} | null（呼び出し側がnoteToLaneで解決して渡す）
  *     instrument.display が無い/未知typeなら何も描かない（防御。並行して
  *     instruments/*.js に display フィールドが追加される途上でもクラッシュしない）。
+ *
+ * v2.0: パネル全体にカード調の下地(丸角+レイヤー重ねの疑似シャドウ・shadowBlur不使用)を敷き、
+ *   手の絵を一回り太らせて丸みを強調、指名/「おさえない」ラベルを丸角ピルのバッジ表示にした。
+ *   これらは全て既存の draw() 引数の形を変えない装飾レイヤーの追加のみ。
  */
 
 // 運指マッピング（One-Finger-Per-Fret・エンジン共通規則。楽器の弦/フレット構造は知らず、
@@ -59,8 +63,30 @@ class FingerBoard {
     if (!display || !display.type) return;
     this._frame++;
     theme = theme || {};
+    this._drawCardBackdrop(ctx, x, y, w, h);
     if (display.type === 'fretboard') this._drawFretboardPanel(ctx, x, y, w, h, current, next, theme, display);
     else if (display.type === 'keyboard') this._drawKeyboardPanel(ctx, x, y, w, h, current, next, theme);
+  }
+
+  // v2.0: パネル全体にカード調の下地を敷く（丸角+やわらかい影風の縁）。
+  // shadowBlurは高コストなので使わず、alphaを段階的に薄くした矩形を重ねて「影」を模す。
+  _drawCardBackdrop(ctx, x, y, w, h){
+    const pad = 6;
+    const cw = Math.max(1, w - pad * 2);
+    const ch = Math.max(1, h - pad * 2);
+    ctx.save();
+    for (let i = 3; i >= 1; i--){
+      roundRect(ctx, x + pad, y + pad + i * 1.6, cw, ch, 16);
+      ctx.fillStyle = 'rgba(10,5,25,' + (0.05 * i) + ')';
+      ctx.fill();
+    }
+    roundRect(ctx, x + pad, y + pad, cw, ch, 16);
+    ctx.fillStyle = 'rgba(255,250,252,0.10)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
   }
 
   // --- fretboard型パネル ---
@@ -213,16 +239,17 @@ class FingerBoard {
     const pulse = 2 + Math.sin(this._frame * 0.18) * 2;
 
     const cx = x + w / 2;
-    const palmW = w * 0.46;
-    const palmH = h * 0.34;
+    // v2.0: 「ぷにっと丸く可愛く」— 指/てのひらを一回り太らせて丸みを強調
+    const palmW = w * 0.5;
+    const palmH = h * 0.38;
     const palmX = cx - palmW / 2;
-    const palmY = y + h * 0.56;
+    const palmY = y + h * 0.54;
 
     ctx.save();
     ctx.globalAlpha = isOpen ? 0.35 : 1;
 
     // おやゆび（左下に斜め付け・機能割当なし・シルエットのみ。常に中立色）
-    const thumbW = palmW * 0.42;
+    const thumbW = palmW * 0.46;
     const thumbH = h * 0.2;
     roundRect(ctx, palmX - thumbW * 0.5, palmY + palmH * 0.42, thumbW, thumbH, thumbW / 2);
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
@@ -232,9 +259,9 @@ class FingerBoard {
     ctx.stroke();
 
     // 4ほんゆび: ひとさしゆび〜こゆびを左から並べる（なか/くすりゆびをやや長く=自然な見た目）
-    const fingerW = palmW * 0.19;
+    const fingerW = palmW * 0.22; // v2.0: 0.19→0.22でぷにっと太めに
     const fingerGap = Math.max(1, (palmW - fingerW * 4) / 5);
-    const fingerLenRatio = [0.62, 0.74, 0.72, 0.58];
+    const fingerLenRatio = [0.60, 0.72, 0.70, 0.56];
     let fx = palmX + fingerGap;
     for (let f = 1; f <= 4; f++){
       const isActive = !isOpen && activeFinger === f;
@@ -246,12 +273,22 @@ class FingerBoard {
       ctx.strokeStyle = isActive ? (theme.judgeLine || '#ffd34d') : 'rgba(255,255,255,0.32)';
       ctx.lineWidth = isActive ? 2.5 : 1.5;
       ctx.stroke();
+      if (isActive){
+        // ぷにっとしたツヤ（指先の小さな白いハイライト楕円。glossy感を足すだけの装飾）
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.beginPath();
+        ctx.ellipse(fx + fingerW * 0.5, fy + fingerW * 0.55, fingerW * 0.32, fingerW * 0.2, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.restore();
+      }
       fx += fingerW + fingerGap;
     }
 
     // てのひら（指の付け根を隠す土台。指より後に描くと指が埋まるので指の前に描画順を保つため
     // ここでは指のあとに重ねず、指の根本だけ隠れるよう指より薄い不透明度で下敷きにする）
-    roundRect(ctx, palmX, palmY, palmW, palmH, 10);
+    roundRect(ctx, palmX, palmY, palmW, palmH, 14);
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.32)';
@@ -259,13 +296,26 @@ class FingerBoard {
     ctx.stroke();
     ctx.restore();
 
-    // ラベル: 開放弦・current無し=「おさえない」/ それ以外=指名
+    // ラベル: バッジ化（丸角ピル+lane色。開放弦=中立色）。「おさえない」も同じバッジ意匠に統一
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.fillStyle = theme.text || '#fff7e8';
     ctx.font = 'bold 12px "Hiragino Maru Gothic ProN", sans-serif';
     const label = isOpen ? 'おさえない' : (fingerObj.name || '');
-    if (label) ctx.fillText(label, cx, y + h - 4);
+    if (label){
+      const textW = ctx.measureText(label).width;
+      const badgeH = clamp(h * 0.15, 14, 20);
+      const badgeW = textW + 18;
+      const badgeX = cx - badgeW / 2;
+      const badgeY = y + h - badgeH - 2;
+      roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
+      ctx.fillStyle = isOpen ? 'rgba(255,255,255,0.18)' : activeColor;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = isOpen ? (theme.text || '#fff7e8') : '#1a1030';
+      ctx.fillText(label, cx, badgeY + badgeH / 2 + 4);
+    }
     ctx.restore();
   }
 

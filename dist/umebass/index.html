@@ -64,7 +64,14 @@
   /* tuner/result はcanvas描画(drawRkTuner/drawRkResultPanel)を見せる必要があるため透過にする。
      ボタンの操作性は .rk-screen の pointer-events:auto のままでよい（背景が消えるだけ）。 */
   #rk-tuner, #rk-result{ background: transparent; }
-  .rk-h1{ font-size: 26px; font-weight: 900; margin: 4px 0 0; text-align: center; color: #ffd34d; }
+  .rk-h1{
+    font-size: 30px; font-weight: 900; margin: 4px 0 0; text-align: center;
+    background: linear-gradient(90deg, #ffd34d, #ff8fb3, #7fd8ff, #ffd34d);
+    background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: rk-title-gradient 6s linear infinite, rk-title-bounce 2.2s ease-in-out infinite;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
+  }
   .rk-h2{ font-size: 20px; font-weight: 900; margin: 4px 0; text-align: center; }
   .rk-sub{ font-size: 14px; margin: 0; text-align: center; color: #e6d8ff; }
   .rk-block{ width: 100%; max-width: 420px; }
@@ -75,31 +82,123 @@
     padding: 12px 10px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.25);
     background: rgba(255,255,255,0.08); color: #fff7e8; font-size: 15px; font-weight: 700;
     text-align: center;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
   }
-  .rk-chip.rk-active{ background: #ff8fb3; border-color: #ff8fb3; color: #2a1030; }
+  .rk-chip.rk-active{ background: #ff8fb3; border-color: #ff8fb3; color: #2a1030; box-shadow: 0 4px 12px rgba(255,143,179,0.45); }
   .rk-song-list{ display: flex; flex-direction: column; gap: 8px; width: 100%; }
   .rk-song{
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 14px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.2);
     background: rgba(255,255,255,0.06); font-size: 15px; font-weight: 700;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
   }
-  .rk-song.rk-active{ background: rgba(255,211,77,0.22); border-color: #ffd34d; }
+  .rk-song.rk-active{ background: rgba(255,211,77,0.22); border-color: #ffd34d; box-shadow: 0 4px 12px rgba(255,211,77,0.3); }
   .rk-song.rk-disabled{ opacity: 0.35; }
-  .rk-song-right{ display: flex; align-items: center; gap: 8px; }
+  .rk-song-left{ display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .rk-song-emoji{ font-size: 20px; line-height: 1; flex: 0 0 auto; }
+  .rk-song-title{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rk-song-right{ display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
   .rk-song-stars{ font-size: 13px; color: #ffd34d; }
   .rk-song-best{ font-size: 12px; color: #ffd34d; white-space: nowrap; }
-  .rk-row{ display: flex; gap: 12px; justify-content: center; width: 100%; max-width: 420px; margin-top: auto; padding-top: 8px; }
+  .rk-row{
+    display: flex; gap: 12px; justify-content: center; width: 100%; max-width: 420px;
+    margin-top: auto; padding-top: 14px; padding-bottom: 2px;
+    /* スクロールする曲リストの上に重なっても文字が混ざらないよう、下端に吸着+ぼかし背景 */
+    position: sticky; bottom: 0; z-index: 2;
+    background: linear-gradient(180deg, rgba(42,26,88,0), rgba(42,26,88,0.92) 40%, rgba(42,26,88,0.98));
+  }
   button{ font-family: inherit; border: none; cursor: pointer; }
   .rk-btn-primary, .rk-btn-secondary{
     flex: 1 1 auto; min-height: 56px; border-radius: 20px; font-size: 17px; font-weight: 900;
     padding: 10px 14px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
   }
-  .rk-btn-primary{ background: #ff8fb3; color: #2a1030; }
+  .rk-btn-primary{ background: #ff8fb3; color: #2a1030; box-shadow: 0 4px 14px rgba(255,143,179,0.4); }
   .rk-btn-secondary{ background: rgba(255,255,255,0.12); color: #fff7e8; border: 2px solid rgba(255,255,255,0.3); }
+  .rk-btn-primary:active, .rk-btn-secondary:active, .rk-chip:active, .rk-song:active{ transform: scale(0.94); }
+  @media (hover: hover){
+    .rk-btn-primary:hover, .rk-btn-secondary:hover{ transform: translateY(-2px); filter: brightness(1.06); }
+    .rk-chip:hover, .rk-song:hover{ transform: translateY(-1px); }
+  }
   .rk-corner{ position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 16px; min-height: 44px; }
   #rk-offset-slider{ width: 100%; height: 40px; }
   #rk-mic-meter-wrap{ width: 100%; max-width: 340px; }
   #rk-mic-meter-canvas{ width: 100%; height: 24px; }
+
+  /* --- カード調（せってい/マイクじゅんび/タイミングあわせ画面の統一デザイン言語） --- */
+  .rk-card{
+    width: 100%; max-width: 420px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 28px;
+    padding: 20px 18px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.12);
+    border: 2px solid rgba(255,255,255,0.14);
+  }
+
+  /* --- タイトル演出: 浮遊する音符/星（decorative・時間ベースCSSアニメのみ） --- */
+  .rk-title-fx{ position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  .rk-float{
+    position: absolute; font-size: 22px; opacity: 0.35; will-change: transform;
+    animation: rk-float-drift linear infinite;
+  }
+  .rk-float-a{ left: 8%;  top: 70%; font-size: 26px; animation-duration: 9s;  animation-delay: 0s; }
+  .rk-float-b{ left: 82%; top: 60%; font-size: 20px; animation-duration: 11s; animation-delay: 1.2s; }
+  .rk-float-c{ left: 20%; top: 15%; font-size: 18px; animation-duration: 8s;  animation-delay: 2.4s; }
+  .rk-float-d{ left: 70%; top: 20%; font-size: 24px; animation-duration: 12s; animation-delay: 0.6s; }
+  .rk-float-e{ left: 45%; top: 80%; font-size: 20px; animation-duration: 10s; animation-delay: 3s; }
+  #rk-title > *{ position: relative; z-index: 1; }
+
+  #rk-mascot-canvas{
+    width: 72px; height: 72px; image-rendering: pixelated;
+    animation: rk-wobble 2.4s ease-in-out infinite;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.35));
+  }
+
+  @keyframes rk-title-gradient{
+    0%{ background-position: 0% 50%; } 100%{ background-position: 300% 50%; }
+  }
+  @keyframes rk-title-bounce{
+    0%, 100%{ transform: translateY(0); } 50%{ transform: translateY(-6px); }
+  }
+  @keyframes rk-float-drift{
+    0%{ transform: translateY(0) rotate(0deg); }
+    50%{ transform: translateY(-26px) rotate(8deg); }
+    100%{ transform: translateY(0) rotate(0deg); }
+  }
+  @keyframes rk-wobble{
+    0%, 100%{ transform: rotate(-4deg); } 50%{ transform: rotate(4deg); }
+  }
+  @keyframes rk-pop-in{
+    0%{ transform: scale(0.7); opacity: 0; } 100%{ transform: scale(1); opacity: 1; }
+  }
+
+  /* --- あそびかたオーバーレイ（初回チュートリアル・DOM層） --- */
+  .rk-tutorial-overlay{
+    justify-content: center; gap: 18px;
+    /* 下の画面(タイトル等)が透けて文字が混ざらないよう、ほぼ不透明の専用背景を持つ */
+    background: linear-gradient(180deg, rgba(20,9,43,0.97), rgba(34,18,64,0.98));
+    z-index: 5;
+  }
+  .rk-tut-panels{ display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 420px; }
+  .rk-tut-panel{
+    display: flex; align-items: center; gap: 14px;
+    background: rgba(255,255,255,0.08); border-radius: 22px; padding: 14px 16px;
+    border: 2px solid rgba(255,255,255,0.14);
+    animation: rk-pop-in 0.3s ease both;
+  }
+  .rk-tut-panel:nth-child(2){ animation-delay: 0.08s; }
+  .rk-tut-panel:nth-child(3){ animation-delay: 0.16s; }
+  .rk-tut-emoji{ font-size: 34px; flex: 0 0 auto; }
+  .rk-tut-text{ font-size: 15px; font-weight: 700; }
+
+  /* --- reduced motion（人間指示: 過剰演出がプレイの視認性を壊さないこと） --- */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -109,8 +208,16 @@
 </div>
 <div id="rk-overlay">
   <section id="rk-title" class="rk-screen">
+    <div class="rk-title-fx" aria-hidden="true">
+      <span class="rk-float rk-float-a">🎵</span>
+      <span class="rk-float rk-float-b">⭐</span>
+      <span class="rk-float rk-float-c">🎶</span>
+      <span class="rk-float rk-float-d">✨</span>
+      <span class="rk-float rk-float-e">🎵</span>
+    </div>
     <h1 class="rk-h1" id="rk-game-title"></h1>
     <p class="rk-sub" id="rk-game-subtitle"></p>
+    <canvas id="rk-mascot-canvas" width="72" height="72"></canvas>
     <div class="rk-block">
       <div class="rk-label">がっき</div>
       <div class="rk-chip-row" id="rk-instrument-row"></div>
@@ -132,16 +239,21 @@
 
   <section id="rk-settings" class="rk-screen rk-hidden">
     <h2 class="rk-h2">せってい</h2>
-    <div class="rk-block">
-      <div class="rk-label" id="rk-offset-label">タイミングの ずれあわせ（てどうで）</div>
-      <input type="range" id="rk-offset-slider" min="-0.3" max="0.3" step="0.01" value="-0.12">
-    </div>
-    <div class="rk-block">
-      <div class="rk-label">おとの よみかた</div>
-      <div class="rk-chip-row" id="rk-naming-row"></div>
-    </div>
-    <div class="rk-block">
-      <button class="rk-btn-secondary" id="rk-btn-calib-start" style="width:100%;">じどうで タイミングあわせ</button>
+    <div class="rk-card">
+      <div class="rk-block">
+        <div class="rk-label" id="rk-offset-label">タイミングの ずれあわせ（てどうで）</div>
+        <input type="range" id="rk-offset-slider" min="-0.3" max="0.3" step="0.01" value="-0.12">
+      </div>
+      <div class="rk-block">
+        <div class="rk-label">おとの よみかた</div>
+        <div class="rk-chip-row" id="rk-naming-row"></div>
+      </div>
+      <div class="rk-block">
+        <button class="rk-btn-secondary" id="rk-btn-calib-start" style="width:100%;">じどうで タイミングあわせ</button>
+      </div>
+      <div class="rk-block">
+        <button class="rk-btn-secondary" id="rk-btn-tut-view" style="width:100%;">あそびかたを みる</button>
+      </div>
     </div>
     <div class="rk-row">
       <button class="rk-btn-primary" id="rk-btn-settings-back">もどる</button>
@@ -150,9 +262,11 @@
 
   <section id="rk-micsetup" class="rk-screen rk-hidden">
     <h2 class="rk-h2">マイクじゅんび</h2>
-    <p class="rk-sub" id="rk-mic-message">がっきを マイクに ちかづけて おとを だしてね</p>
-    <div id="rk-mic-meter-wrap"><canvas id="rk-mic-meter-canvas" width="280" height="24"></canvas></div>
-    <p class="rk-sub" id="rk-mic-detected"></p>
+    <div class="rk-card">
+      <p class="rk-sub" id="rk-mic-message">がっきを マイクに ちかづけて おとを だしてね</p>
+      <div id="rk-mic-meter-wrap"><canvas id="rk-mic-meter-canvas" width="280" height="24"></canvas></div>
+      <p class="rk-sub" id="rk-mic-detected"></p>
+    </div>
     <div class="rk-row">
       <button class="rk-btn-secondary" id="rk-btn-mic-skip">タップであそぶ</button>
       <button class="rk-btn-primary" id="rk-btn-mic-ok">OK！はじめる</button>
@@ -161,11 +275,25 @@
 
   <section id="rk-calib" class="rk-screen rk-hidden">
     <h2 class="rk-h2">じどうで タイミングあわせ</h2>
-    <p class="rk-sub" id="rk-calib-message">マイクを じゅんびしてるよ…</p>
-    <p class="rk-sub" id="rk-calib-result"></p>
+    <div class="rk-card">
+      <p class="rk-sub" id="rk-calib-message">マイクを じゅんびしてるよ…</p>
+      <p class="rk-sub" id="rk-calib-result"></p>
+    </div>
     <div class="rk-row">
       <button class="rk-btn-secondary" id="rk-btn-calib-back">もどる</button>
       <button class="rk-btn-primary rk-hidden" id="rk-btn-calib-retry">もういちど</button>
+    </div>
+  </section>
+
+  <section id="rk-tutorial" class="rk-screen rk-tutorial-overlay rk-hidden">
+    <h2 class="rk-h2">あそびかた</h2>
+    <div class="rk-tut-panels">
+      <div class="rk-tut-panel"><span class="rk-tut-emoji">🎵⬇️</span><span class="rk-tut-text">①おとが おちてくる</span></div>
+      <div class="rk-tut-panel"><span class="rk-tut-emoji">✋🔢</span><span class="rk-tut-text">②したの てと ばんごうを みて おさえる</span></div>
+      <div class="rk-tut-panel"><span class="rk-tut-emoji">✅🎉</span><span class="rk-tut-text">③ひけたら あたり！</span></div>
+    </div>
+    <div class="rk-row">
+      <button class="rk-btn-primary" id="rk-btn-tut-ok">わかった！</button>
     </div>
   </section>
 
@@ -223,7 +351,16 @@
  *   instruments/<id>.js の synthPatch フィールドから渡ってくる契約）。
  *
  * 公開API（グローバル関数・const）: getCtx() / unlock() / playNote(midi, opts) /
- *   playSfx(name) / metronome.start(bpm, onTick) / metronome.stop()
+ *   playSfx(name) / metronome.start(bpm, onTick) / metronome.stop() /
+ *   bgmStart(titleBgmDef) / bgmStop()
+ *
+ * v2.0 titleBgm: GAME_DEF.titleBgm（{bpm, patch, loop:[{beat,midi,dur?}...]}）を
+ *   先読みスケジューリングでループ再生する汎用シーケンサ。音量はmaster比0.35固定
+ *   （BGMはSFXやノート音より控えめにする）。多重start防止のためbgmStart()は
+ *   内部で必ずbgmStop()してから開始する。
+ *   ⚠️ 鳴らしてよいのは title / result 画面のみ（micが止まっている画面）。
+ *   micSetup/calib/play では必ず bgmStop() を呼ぶこと — echoCancellation OFFの
+ *   ためスピーカーから出たBGMがマイクに回り込み、ピッチ判定を汚染する。
  *
  * v1.1音質感アップ: SYNTH_PATCHES に pitchDrop / filterEnv という汎用パラメータを
  *   追加した（楽器名で分岐する専用ロジックではなく、パッチデータが持つ値をエンジンが
@@ -240,6 +377,8 @@ const __audioState = {
   master: null,
   unlocked: false,
   metroTimer: null,
+  bgmTimer: null,
+  bgmPlaying: false,
 };
 
 // パッチ名 → 音色パラメータ。SPEC:
@@ -451,6 +590,102 @@ const metronome = {
     }
   },
 };
+
+// 1本のBGMノートをt0からdur秒鳴らす。playNote()と同じ倍音構成をパッチから読むが、
+// 出力ゲインはBGM用に master比0.35固定（呼び出し側のvel指定は受け付けない）。
+function bgmScheduleNote(ctx, patch, midi, t0, dur) {
+  const freq = midiToFreq(midi);
+  const out = ctx.createGain();
+  out.gain.value = 0.35;
+  out.connect(__audioState.master);
+  playOscLayer(ctx, out, patch.wave, freq, 1, 1, patch.filterHz, dur, t0, patch.pitchDrop, patch.filterEnv);
+  if (patch.harmonic2Gain) {
+    playOscLayer(ctx, out, patch.wave, freq, 2, patch.harmonic2Gain, patch.filterHz, dur, t0);
+  }
+  if (patch.harmonic3Gain) {
+    playOscLayer(ctx, out, patch.wave, freq, 3, patch.harmonic3Gain, patch.filterHz, dur, t0);
+  }
+}
+
+// bgmStart(titleBgmDef) — GAME_DEF.titleBgm（{bpm, patch, loop:[{beat,midi,dur?}...]}）を
+// 先読みスケジューリングでループ再生する。loopの1周の長さは「loop内の最大beat値+1拍」を
+// 自前で算出する（明示的なloopBeatsフィールドは持たない・呼び出し側はbeatを整数の
+// ステップ位置として書く前提）。ctx未生成（unlock前）や空loopなら何もしない。
+// 多重start対策として必ずbgmStop()してから開始する。
+function bgmStart(def) {
+  bgmStop();
+  const ctx = __audioState.ctx;
+  if (!ctx || !def || !def.loop || !def.loop.length) return;
+  const patchName = def.patch && SYNTH_PATCHES[def.patch] ? def.patch : DEFAULT_PATCH_NAME;
+  const patch = SYNTH_PATCHES[patchName];
+  const secPerBeat = 60 / (def.bpm || 100);
+  let loopBeats = 0;
+  for (let i = 0; i < def.loop.length; i++) {
+    if (def.loop[i].beat > loopBeats) loopBeats = def.loop[i].beat;
+  }
+  loopBeats += 1;
+  const loopDurSec = loopBeats * secPerBeat;
+  const lookahead = 0.15;
+  let cycleStart = ctx.currentTime + 0.05;
+  let nextIdx = 0;
+  __audioState.bgmPlaying = true;
+  __audioState.bgmTimer = setInterval(() => {
+    if (!__audioState.bgmPlaying) return;
+    const horizon = ctx.currentTime + lookahead;
+    while (true) {
+      if (nextIdx >= def.loop.length) {
+        nextIdx = 0;
+        cycleStart += loopDurSec;
+      }
+      const note = def.loop[nextIdx];
+      const t = cycleStart + note.beat * secPerBeat;
+      if (t >= horizon) break;
+      const dur = note.dur != null ? note.dur * secPerBeat : secPerBeat * 0.8;
+      bgmScheduleNote(ctx, patch, note.midi, t, dur);
+      nextIdx++;
+    }
+  }, 30);
+}
+
+// bgmStop() — 冪等。timerが無くても安全に呼べる（画面遷移のたび呼んでよい）。
+function bgmStop() {
+  __audioState.bgmPlaying = false;
+  if (__audioState.bgmTimer) {
+    clearInterval(__audioState.bgmTimer);
+    __audioState.bgmTimer = null;
+  }
+}
+
+/*
+ * pixel_art.js — パレット+グリッド形式のドット絵を描く汎用描画部品
+ *
+ * 何をする部品か: { palette: {key: color}, grid: ['..aa..', ...] } という抽象的な
+ *   ドット絵データを受け取り、cellSize四方の正方形をgrid通りに並べて描くだけの
+ *   純粋関数。ドット絵が何を表しているか（マスコットか、アイコンか）は一切知らない。
+ * 外部依存: Canvas 2D Context のみ。
+ *
+ * 公開API: rkDrawPixelmap(ctx, x, y, cellSize, pixelmap)
+ */
+
+// x,y = 描画開始位置（左上）。cellSize = 1マスの一辺の長さ(px)。
+// pixelmap.grid の各行は同じ文字数である前提（不揃いな行は短い側でそのまま止まる）。
+// '.' と ' ' は透過（描かない）。palette未登録の文字も防御的に無視する。
+function rkDrawPixelmap(ctx, x, y, cellSize, pixelmap) {
+  if (!pixelmap || !pixelmap.grid || !pixelmap.palette) return;
+  const palette = pixelmap.palette;
+  const grid = pixelmap.grid;
+  for (let row = 0; row < grid.length; row++) {
+    const line = grid[row];
+    for (let col = 0; col < line.length; col++) {
+      const key = line[col];
+      if (key === '.' || key === ' ') continue;
+      const color = palette[key];
+      if (!color) continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(x + col * cellSize, y + row * cellSize, cellSize, cellSize);
+    }
+  }
+}
 
 /*
  * pitch_detector.js — マイク→ピッチ検出（心臓部・iPhone実機で本物の楽器音を拾う）
@@ -886,6 +1121,8 @@ const RK_LOOKAHEAD_SEC = 4;      // 先読み表示4秒ぶん
 const RK_JUDGE_LINE_RATIO_PITCH = 0.70;
 const RK_JUDGE_LINE_RATIO_LANE = 0.82;
 const RK_PANEL_LANDSCAPE_CONTENT_RATIO = 0.55; // 横長×pitch時、ハイウェイに残す幅の割合（残り45%がパネル）
+const RK_BG_FLOATERS = ['♪', '♫', '★', '✦']; // 背景に薄く流す浮遊グリフ（v2.0・楽器知識なし）
+const RK_JUDGE_PULSE_PERIOD_SEC = 1.2; // 判定線グローの脈動周期（bpm情報なしでも成立する固定値）
 
 class Highway {
   constructor(canvas, instrument, naming){
@@ -895,6 +1132,11 @@ class Highway {
     this.naming = naming || 'doremi';
     this.hitFx = []; // {x, y, timer, label}
     this.comboPulse = 0; // コンボ5刻み到達時の画面パルス残り秒（0で無効）
+    // v2.0: 判定線レインボー化（コンボ20+）のための内部コンボ計数。
+    // judge.jsのcombo値はdraw()の引数に無いため、spawnHitFx/spawnMissFxの呼び出し
+    // パターン（hitで+1・missで0）がjudge.combo増減と完全に一致することを使って
+    // Highway内部だけで再現する（game_core.js側の変更は不要）。
+    this._comboCount = 0;
     this.laneButtons = [];
     this.judgeMode = 'lane'; // 既定lane（tuner等、setJudgeModeが呼ばれない画面での安全側デフォルト）
     this.fit();
@@ -902,6 +1144,7 @@ class Highway {
   setInstrument(instrument){
     this.instrument = instrument;
     this._layoutLanes();
+    this._comboCount = 0; // 新しい曲/楽器選択のたびにレインボー判定用コンボもリセット
   }
   setNaming(naming){ this.naming = naming; }
   // game_core._startPlay()がjudgeMode確定後に呼ぶ。lane以外は全部'lane'扱い（安全側）。
@@ -953,9 +1196,10 @@ class Highway {
     return this.judgeY - (dt / RK_LOOKAHEAD_SEC) * this.judgeY;
   }
   spawnHitFx(laneIndex, rank){
+    this._comboCount++; // game_core.jsはヒット確定時のみこれを呼ぶ＝judge.combo++と同じタイミング
     const label = rank === 'perfect' ? 'パーフェクト！' : (rank === 'good' ? 'グッド！' : null);
     if (!label || this.laneX == null) return;
-    this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, label, cheer: false });
+    this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, burst: true, label, cheer: false });
   }
   // マスコット応援テキストのポップ（GAME_DEF.theme.mascot.cheer由来の文言を受け取って表示するだけ。
   // 文言の中身・選び方は一切知らない＝呼び出し側(game_core.js)が決める）。リング演出は出さず
@@ -967,6 +1211,7 @@ class Highway {
   }
   // MISS演出（練習寄り: 「おしい！」の柔らかいポップ。リングは出さず責める見た目にしない）
   spawnMissFx(laneIndex){
+    this._comboCount = 0; // game_core.jsはmiss確定時のみこれを呼ぶ＝judge.combo=0と同じタイミング
     if (this.laneX == null || this.laneX[laneIndex] == null) return;
     this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, label: 'おしい！', cheer: false, miss: true });
   }
@@ -982,6 +1227,28 @@ class Highway {
       if (fx.timer <= 0) this.hitFx.splice(i, 1);
     }
     if (this.comboPulse > 0) this.comboPulse = Math.max(0, this.comboPulse - dt);
+  }
+  // v2.0: 背景の浮遊音符/星（決定論・songTimeSecのみで散らす・8個以下・alpha低めでノートの
+  // 視認性を絶対に壊さない。contentWまで＝右パネル領域には出さない）。
+  _drawBackgroundFloaters(songTimeSec){
+    const ctx = this.ctx;
+    const n = 8;
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (let i = 0; i < n; i++){
+      const glyph = RK_BG_FLOATERS[i % RK_BG_FLOATERS.length];
+      const xBase = ((Math.sin(i * 7.31 + 1) * 0.5 + 0.5)) * this.contentW;
+      const drift = Math.sin(songTimeSec * 0.15 + i * 2.1) * (this.contentW * 0.06);
+      const speed = 8 + (i % 3) * 3; // px/秒。個体差はi由来（乱数不使用）
+      const y = this.h - ((songTimeSec * speed + i * 71) % (this.h + 60));
+      const alpha = 0.06 + 0.06 * (0.5 + 0.5 * Math.sin(songTimeSec * 0.4 + i));
+      const size = 14 + (i % 3) * 5;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = size + 'px sans-serif';
+      ctx.fillText(glyph, xBase + drift, y);
+    }
+    ctx.restore();
   }
   // runners: JudgeEngine.runners（judge.js の RkNoteRunner 配列）
   // lane modeのタッチボタン列は input_router.js が実DOM要素として生成し、
@@ -999,6 +1266,9 @@ class Highway {
     bgGrad.addColorStop(1, bg[1] || bg[0] || '#2a1038');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, this.w, this.h);
+
+    // v2.0: 背景にゆっくり流れる音符/星（薄く・ノートより手前に出さない=最初に描く）
+    this._drawBackgroundFloaters(songTimeSec);
 
     // レーンごとの薄色フィル（レーン色を淡く敷いて視覚リンクを作る）
     for (let i = 0; i < this.instrument.lanes.length; i++){
@@ -1019,13 +1289,21 @@ class Highway {
     }
     // 判定線（グロー: shadowBlurは高コストなので、低alphaの太線を下敷きにして重ね描きする）。
     // contentWまで（横長×pitch時は右パネル領域に判定線を伸ばさない）。
+    // v2.0: ビートに脈打つグロー。呼び出し側からbpm/beatPhaseを受け取れない
+    // （draw()の公開引数を変えない制約）ため、songTimeSecだけから一定周期(1.2秒)の
+    // ゆったりしたパルスを作る＝拍情報が無くても「脈打っている」体感は十分出せる。
+    const pulse01 = 0.5 + 0.5 * Math.sin((songTimeSec / RK_JUDGE_PULSE_PERIOD_SEC) * Math.PI * 2);
+    // コンボ20+のときだけ、さりげなく判定線を虹色に（レインボー色相はsongTimeSec由来で決定論）
+    const judgeColor = this._comboCount >= 20
+      ? 'hsl(' + Math.round((songTimeSec * 60) % 360) + ',85%,65%)'
+      : (theme.judgeLine || '#ffd34d');
     ctx.save();
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = theme.judgeLine || '#ffd34d';
-    ctx.lineWidth = 10;
+    ctx.globalAlpha = 0.22 + 0.26 * pulse01;
+    ctx.strokeStyle = judgeColor;
+    ctx.lineWidth = 9 + 4 * pulse01;
     ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.contentW, this.judgeY); ctx.stroke();
     ctx.restore();
-    ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+    ctx.strokeStyle = judgeColor;
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.contentW, this.judgeY); ctx.stroke();
 
@@ -1057,6 +1335,37 @@ class Highway {
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
       ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.restore();
+      // v2.0: 宝石調ハイライト+微細スパークル（文字を描く前だけに重ねる薄い演出。
+      // フレット数字/音名の可読性を落とさないよう、色は白のみ・alphaは低め）。
+      ctx.save();
+      ctx.globalAlpha = (r.state === 'hit' ? 0.35 : 1) * 0.4;
+      ctx.beginPath();
+      ctx.ellipse(x - badgeR * 0.28, y - badgeR * 0.32, badgeR * 0.5, badgeR * 0.3, -0.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.restore();
+      if (r.state !== 'hit'){
+        // スパークル位相はnote(midi+targetSec)由来＝ノート単位で固定・songTimeSecでだけ瞬く
+        const seed = r.note.midi * 1.7 + r.targetSec * 0.9;
+        for (let s = 0; s < 2; s++){
+          const twinkle = 0.3 + 0.3 * Math.sin(songTimeSec * 3 + seed + s * 2.4);
+          if (twinkle <= 0) continue;
+          const sa = seed + s * 2.6;
+          const sx = x + Math.cos(sa) * badgeR * 0.62;
+          const sy = y + Math.sin(sa) * badgeR * 0.62;
+          ctx.save();
+          ctx.globalAlpha = twinkle;
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - 3); ctx.lineTo(sx + 1.2, sy - 1.2); ctx.lineTo(sx + 3, sy); ctx.lineTo(sx + 1.2, sy + 1.2);
+          ctx.lineTo(sx, sy + 3); ctx.lineTo(sx - 1.2, sy + 1.2); ctx.lineTo(sx - 3, sy); ctx.lineTo(sx - 1.2, sy - 1.2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.save();
       ctx.fillStyle = '#1a1030';
       ctx.textAlign = 'center';
       ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
@@ -1081,6 +1390,22 @@ class Highway {
         ctx.beginPath();
         ctx.arc(fx.x, fx.y, 20 + fx.ring * 18, 0, Math.PI * 2);
         ctx.stroke();
+        // v2.0: 星バースト（既存リングに加え、8方向へ短い光の線を放射させて「星形」感を足す）
+        if (fx.burst){
+          ctx.save();
+          ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+          ctx.lineWidth = 2.5;
+          for (let b = 0; b < 8; b++){
+            const ba = (b / 8) * Math.PI * 2;
+            const inner = 10 + fx.ring * 6;
+            const outer = 10 + fx.ring * 22;
+            ctx.beginPath();
+            ctx.moveTo(fx.x + Math.cos(ba) * inner, fx.y + Math.sin(ba) * inner);
+            ctx.lineTo(fx.x + Math.cos(ba) * outer, fx.y + Math.sin(ba) * outer);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
       }
       ctx.fillStyle = fx.miss ? (theme.text || '#fff7e8') : (theme.accent || '#ff8fb3');
       ctx.textAlign = 'center';
@@ -1135,6 +1460,10 @@ class Highway {
  *     current/next: {laneIndex, fret, midi} | null（呼び出し側がnoteToLaneで解決して渡す）
  *     instrument.display が無い/未知typeなら何も描かない（防御。並行して
  *     instruments/*.js に display フィールドが追加される途上でもクラッシュしない）。
+ *
+ * v2.0: パネル全体にカード調の下地(丸角+レイヤー重ねの疑似シャドウ・shadowBlur不使用)を敷き、
+ *   手の絵を一回り太らせて丸みを強調、指名/「おさえない」ラベルを丸角ピルのバッジ表示にした。
+ *   これらは全て既存の draw() 引数の形を変えない装飾レイヤーの追加のみ。
  */
 
 // 運指マッピング（One-Finger-Per-Fret・エンジン共通規則。楽器の弦/フレット構造は知らず、
@@ -1166,8 +1495,30 @@ class FingerBoard {
     if (!display || !display.type) return;
     this._frame++;
     theme = theme || {};
+    this._drawCardBackdrop(ctx, x, y, w, h);
     if (display.type === 'fretboard') this._drawFretboardPanel(ctx, x, y, w, h, current, next, theme, display);
     else if (display.type === 'keyboard') this._drawKeyboardPanel(ctx, x, y, w, h, current, next, theme);
+  }
+
+  // v2.0: パネル全体にカード調の下地を敷く（丸角+やわらかい影風の縁）。
+  // shadowBlurは高コストなので使わず、alphaを段階的に薄くした矩形を重ねて「影」を模す。
+  _drawCardBackdrop(ctx, x, y, w, h){
+    const pad = 6;
+    const cw = Math.max(1, w - pad * 2);
+    const ch = Math.max(1, h - pad * 2);
+    ctx.save();
+    for (let i = 3; i >= 1; i--){
+      roundRect(ctx, x + pad, y + pad + i * 1.6, cw, ch, 16);
+      ctx.fillStyle = 'rgba(10,5,25,' + (0.05 * i) + ')';
+      ctx.fill();
+    }
+    roundRect(ctx, x + pad, y + pad, cw, ch, 16);
+    ctx.fillStyle = 'rgba(255,250,252,0.10)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
   }
 
   // --- fretboard型パネル ---
@@ -1320,16 +1671,17 @@ class FingerBoard {
     const pulse = 2 + Math.sin(this._frame * 0.18) * 2;
 
     const cx = x + w / 2;
-    const palmW = w * 0.46;
-    const palmH = h * 0.34;
+    // v2.0: 「ぷにっと丸く可愛く」— 指/てのひらを一回り太らせて丸みを強調
+    const palmW = w * 0.5;
+    const palmH = h * 0.38;
     const palmX = cx - palmW / 2;
-    const palmY = y + h * 0.56;
+    const palmY = y + h * 0.54;
 
     ctx.save();
     ctx.globalAlpha = isOpen ? 0.35 : 1;
 
     // おやゆび（左下に斜め付け・機能割当なし・シルエットのみ。常に中立色）
-    const thumbW = palmW * 0.42;
+    const thumbW = palmW * 0.46;
     const thumbH = h * 0.2;
     roundRect(ctx, palmX - thumbW * 0.5, palmY + palmH * 0.42, thumbW, thumbH, thumbW / 2);
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
@@ -1339,9 +1691,9 @@ class FingerBoard {
     ctx.stroke();
 
     // 4ほんゆび: ひとさしゆび〜こゆびを左から並べる（なか/くすりゆびをやや長く=自然な見た目）
-    const fingerW = palmW * 0.19;
+    const fingerW = palmW * 0.22; // v2.0: 0.19→0.22でぷにっと太めに
     const fingerGap = Math.max(1, (palmW - fingerW * 4) / 5);
-    const fingerLenRatio = [0.62, 0.74, 0.72, 0.58];
+    const fingerLenRatio = [0.60, 0.72, 0.70, 0.56];
     let fx = palmX + fingerGap;
     for (let f = 1; f <= 4; f++){
       const isActive = !isOpen && activeFinger === f;
@@ -1353,12 +1705,22 @@ class FingerBoard {
       ctx.strokeStyle = isActive ? (theme.judgeLine || '#ffd34d') : 'rgba(255,255,255,0.32)';
       ctx.lineWidth = isActive ? 2.5 : 1.5;
       ctx.stroke();
+      if (isActive){
+        // ぷにっとしたツヤ（指先の小さな白いハイライト楕円。glossy感を足すだけの装飾）
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.beginPath();
+        ctx.ellipse(fx + fingerW * 0.5, fy + fingerW * 0.55, fingerW * 0.32, fingerW * 0.2, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.restore();
+      }
       fx += fingerW + fingerGap;
     }
 
     // てのひら（指の付け根を隠す土台。指より後に描くと指が埋まるので指の前に描画順を保つため
     // ここでは指のあとに重ねず、指の根本だけ隠れるよう指より薄い不透明度で下敷きにする）
-    roundRect(ctx, palmX, palmY, palmW, palmH, 10);
+    roundRect(ctx, palmX, palmY, palmW, palmH, 14);
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.32)';
@@ -1366,13 +1728,26 @@ class FingerBoard {
     ctx.stroke();
     ctx.restore();
 
-    // ラベル: 開放弦・current無し=「おさえない」/ それ以外=指名
+    // ラベル: バッジ化（丸角ピル+lane色。開放弦=中立色）。「おさえない」も同じバッジ意匠に統一
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.fillStyle = theme.text || '#fff7e8';
     ctx.font = 'bold 12px "Hiragino Maru Gothic ProN", sans-serif';
     const label = isOpen ? 'おさえない' : (fingerObj.name || '');
-    if (label) ctx.fillText(label, cx, y + h - 4);
+    if (label){
+      const textW = ctx.measureText(label).width;
+      const badgeH = clamp(h * 0.15, 14, 20);
+      const badgeW = textW + 18;
+      const badgeX = cx - badgeW / 2;
+      const badgeY = y + h - badgeH - 2;
+      roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
+      ctx.fillStyle = isOpen ? 'rgba(255,255,255,0.18)' : activeColor;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = isOpen ? (theme.text || '#fff7e8') : '#1a1030';
+      ctx.fillText(label, cx, badgeY + badgeH / 2 + 4);
+    }
     ctx.restore();
   }
 
@@ -1660,8 +2035,14 @@ class JudgeEngine {
 
 function drawRkScoreHud(ctx, x, y, score, combo){
   ctx.save();
-  roundRect(ctx, x, y, 140, 56, 12);
-  ctx.fillStyle = 'rgba(255,250,252,0.55)';
+  // v2.0: カード調の下地を厚めに（layered alpha重ねの疑似シャドウ。shadowBlur不使用）
+  for (let i = 3; i >= 1; i--){
+    roundRect(ctx, x, y + i * 1.4, 140, 56, 16);
+    ctx.fillStyle = 'rgba(10,5,25,' + (0.05 * i) + ')';
+    ctx.fill();
+  }
+  roundRect(ctx, x, y, 140, 56, 16);
+  ctx.fillStyle = 'rgba(255,250,252,0.6)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = 1.5;
@@ -1669,7 +2050,7 @@ function drawRkScoreHud(ctx, x, y, score, combo){
   ctx.textAlign = 'left';
   ctx.fillStyle = '#3a2a5a';
   ctx.font = 'bold 16px "Hiragino Maru Gothic ProN", sans-serif';
-  ctx.fillText('SCORE ' + score, x + 8, y + 24);
+  ctx.fillText('⭐SCORE ' + score, x + 8, y + 24);
   if (combo > 0){
     ctx.fillStyle = '#ff5f97';
     ctx.font = 'bold 14px "Hiragino Maru Gothic ProN", sans-serif';
@@ -1765,9 +2146,16 @@ function drawRkTuner(ctx, canvasW, canvasH, detected, naming){
   ctx.restore();
 }
 
+// v2.0: リザルトのランク星きらめき用の呼び出し回数カウンタ。game_core.jsのdrawRkResultPanel
+// 呼び出し方(引数の形)は変えられないため、自分自身の呼ばれた回数を数えて時間軸の代わりにする
+// （Date.now/Math.random不使用・純粋に呼び出し回数ベースの決定論パルス。confetti側の
+// frame引数と同じ思想を、引数を増やさずhud.js内で完結させたもの）。
+let RK_RESULT_SPARKLE_TICK = 0;
+
 // stats: {perfect, good, miss}。isWaitMode=trueなら「クリア！」表示（rankは無視）。
 // ボタンはDOM側（game_core.js）が担当するため、ここではパネルの矩形情報だけ返す。
 function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
+  RK_RESULT_SPARKLE_TICK++;
   const pw = Math.min(300, canvasW - 40);
   const ph = 260;
   const px = canvasW / 2 - pw / 2;
@@ -1786,6 +2174,22 @@ function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
   ctx.fillStyle = '#ffd34d';
   ctx.font = 'bold 40px "Hiragino Maru Gothic ProN", sans-serif';
   ctx.fillText(isWaitMode ? 'クリア！' : rank, canvasW / 2, py + 70);
+
+  // ランク星のきらめき（rankテキスト周りに散らす小さな星。位置はindex固定・明滅だけtick依存）
+  const sparkleGlyphs = ['✦', '★', '✧'];
+  for (let i = 0; i < 6; i++){
+    const angle = (i / 6) * Math.PI * 2 + 0.3;
+    const radius = 74 + (i % 2) * 14;
+    const sx = canvasW / 2 + Math.cos(angle) * radius;
+    const sy = py + 60 + Math.sin(angle) * (radius * 0.55);
+    const twinkle = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(RK_RESULT_SPARKLE_TICK * 0.06 + i * 1.8));
+    ctx.save();
+    ctx.globalAlpha = twinkle;
+    ctx.fillStyle = '#ffe9a8';
+    ctx.font = (10 + (i % 3) * 4) + 'px sans-serif';
+    ctx.fillText(sparkleGlyphs[i % sparkleGlyphs.length], sx, sy);
+    ctx.restore();
+  }
 
   ctx.font = 'bold 18px "Hiragino Maru Gothic ProN", sans-serif';
   ctx.fillStyle = '#fff7e8';
@@ -1807,9 +2211,11 @@ function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
 // リザルト表示中だけ呼ぶ紙吹雪パーティクル。frameは呼び出し側が持つ整数カウンタ
 // （requestAnimationFrameごとに+1する想定）。乱数不使用: 粒ごとのindexをsin/cosの位相に
 // 使うことで、同じframe値なら常に同じ絵になる決定論描画にする。
-const RK_CONFETTI_COLORS = ['#ffd34d', '#ff8fb3', '#8fe0a0', '#66d9e8', '#ffa94d'];
+// v2.0: 密度24→40・色5→8にリッチ化。粒の1/3は丸、残りは角(四角/ひし形)にして単調さを消す
+// （形状もiだけで決まる決定論分岐・乱数不使用のまま）。
+const RK_CONFETTI_COLORS = ['#ffd34d', '#ff8fb3', '#8fe0a0', '#66d9e8', '#ffa94d', '#c9a0ff', '#ff7a7a', '#7ad9ff'];
 function drawRkConfetti(ctx, canvasW, canvasH, frame){
-  const n = 24;
+  const n = 40;
   ctx.save();
   for (let i = 0; i < n; i++){
     const xBase = ((Math.sin(i * 12.9898) * 0.5 + 0.5)) * canvasW;
@@ -1822,7 +2228,13 @@ function drawRkConfetti(ctx, canvasW, canvasH, frame){
     ctx.rotate(frame * 0.04 + i);
     ctx.globalAlpha = 0.85;
     ctx.fillStyle = RK_CONFETTI_COLORS[i % RK_CONFETTI_COLORS.length];
-    ctx.fillRect(-size / 2, -size / 2, size, size);
+    if (i % 3 === 0){
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   }
   ctx.restore();
@@ -2015,6 +2427,8 @@ class RhythmGame {
     on('rk-btn-calib-start', () => this._toCalib());
     on('rk-btn-calib-back', () => this._onCalibBack());
     on('rk-btn-calib-retry', () => this._startCalibRun());
+    on('rk-btn-tut-ok', () => this._onTutorialOk());
+    on('rk-btn-tut-view', () => this._showTutorial(null));
 
     const slider = document.getElementById('rk-offset-slider');
     if (slider){
@@ -2039,6 +2453,50 @@ class RhythmGame {
     if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
     this._renderTitleScreen();
     this._showScreen('rk-title');
+    this._startTitleBgm();
+  }
+
+  // v2.0: title画面のBGM（GAME_DEF.titleBgmが8bit風ループを渡してくる想定・mic非使用画面のみ許可）。
+  // audio_synth.jsが未実装/未結合でもクラッシュしないtypeofガード。
+  _startTitleBgm(){
+    const bgm = this.gameDef.titleBgm;
+    if (bgm && typeof bgmStart === 'function') bgmStart(bgm);
+  }
+  _stopTitleBgm(){
+    if (typeof bgmStop === 'function') bgmStop();
+  }
+
+  // v2.0: あそびかたオーバーレイ（初回「はじめる」タップ時 or せっていからの再表示）。
+  // localStorage不可環境では「見た」判定を維持できないため、初回ブロックはせず素通しする
+  // （オーバーレイを毎回強制表示すると逆に体験を壊すため。試験環境(vm smoke)もこの経路で通す）。
+  _tutorialKey(){
+    return 'rk_tut_seen_' + this.gameDef.meta.id;
+  }
+  _hasTutorialSeen(){
+    try {
+      if (typeof localStorage === 'undefined') return true;
+      return localStorage.getItem(this._tutorialKey()) === '1';
+    } catch (e) {
+      return true;
+    }
+  }
+  // onDone: オーバーレイを閉じた直後に実行するコールバック（せっていからの再表示時はnull＝閉じるだけ）
+  _showTutorial(onDone){
+    this._tutorialOnDone = onDone || null;
+    const el = document.getElementById('rk-tutorial');
+    if (el && el.classList) el.classList.remove('rk-hidden');
+  }
+  _onTutorialOk(){
+    const el = document.getElementById('rk-tutorial');
+    if (el && el.classList) el.classList.add('rk-hidden');
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(this._tutorialKey(), '1');
+    } catch (e) {
+      // localStorage不可環境は無視
+    }
+    const cb = this._tutorialOnDone;
+    this._tutorialOnDone = null;
+    if (cb) cb();
   }
 
   _renderTitleScreen(){
@@ -2047,6 +2505,7 @@ class RhythmGame {
     if (titleEl) titleEl.textContent = def.meta.title;
     const subEl = document.getElementById('rk-game-subtitle');
     if (subEl) subEl.textContent = def.meta.subtitle || '';
+    this._drawMascotPreview();
 
     const instRow = document.getElementById('rk-instrument-row');
     if (instRow){
@@ -2093,8 +2552,16 @@ class RhythmGame {
         row.className = 'rk-song'
           + (chart.id === this.selectedChartId ? ' rk-active' : '')
           + (inRange ? '' : ' rk-disabled');
+        const left = document.createElement('span');
+        left.className = 'rk-song-left';
+        const emoji = document.createElement('span');
+        emoji.className = 'rk-song-emoji';
+        emoji.textContent = chart.emoji || '🎵';
         const title = document.createElement('span');
+        title.className = 'rk-song-title';
         title.textContent = chart.title;
+        left.appendChild(emoji);
+        left.appendChild(title);
         const right = document.createElement('span');
         right.className = 'rk-song-right';
         const stars = document.createElement('span');
@@ -2108,7 +2575,7 @@ class RhythmGame {
           bestEl.textContent = '🏆' + best;
           right.appendChild(bestEl);
         }
-        row.appendChild(title);
+        row.appendChild(left);
         row.appendChild(right);
         if (inRange){
           row.addEventListener('click', () => {
@@ -2126,6 +2593,30 @@ class RhythmGame {
     }
 
     this._renderNamingChips('rk-naming-row');
+  }
+
+  // v2.0: マスコット定義はGAME_DEF.theme.mascot（既存cheer/enableの置き場）を優先し、
+  // 見つからなければGAME_DEF.mascot直下も見る（並行実装側のフィールド配置ゆれを吸収する防御）。
+  _resolveMascotDef(){
+    const theme = this.gameDef.theme;
+    if (theme && theme.mascot && (theme.mascot.pixelmap || theme.mascot.name)) return theme.mascot;
+    return this.gameDef.mascot || (theme && theme.mascot) || null;
+  }
+
+  // タイトル画面の小窓にマスコットのドット絵を描く（pixel_art.js/rkDrawPixelmapが未実装の間は
+  // 何もしない＝クラッシュしない。要素がcanvas化されていない検証環境でも安全）。
+  _drawMascotPreview(){
+    const canvas = document.getElementById('rk-mascot-canvas');
+    if (!canvas || typeof canvas.getContext !== 'function') return;
+    const mascot = this._resolveMascotDef();
+    if (!mascot || !mascot.pixelmap || typeof rkDrawPixelmap !== 'function') return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || typeof ctx.clearRect !== 'function') return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const grid = mascot.pixelmap.grid || [];
+    const cols = grid.length ? grid[0].length : 1;
+    const cell = Math.max(1, Math.floor(canvas.width / Math.max(cols, 1)));
+    rkDrawPixelmap(ctx, 0, 0, cell, mascot.pixelmap);
   }
 
   _renderNamingChips(rowId){
@@ -2201,6 +2692,16 @@ class RhythmGame {
     if (typeof unlock === 'function') unlock();
     const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
     if (!instrument || !this.selectedChartId || !__RK_CHARTS[this.selectedChartId]) return;
+    if (!this._hasTutorialSeen()){
+      this._showTutorial(() => this._proceedStart());
+      return;
+    }
+    this._proceedStart();
+  }
+
+  _proceedStart(){
+    const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
+    if (!instrument || !this.selectedChartId || !__RK_CHARTS[this.selectedChartId]) return;
     this.instrument = instrument;
     this.selectedChart = __RK_CHARTS[this.selectedChartId];
     this.isWaitMode = this.selectedModeKey === 'wait';
@@ -2219,6 +2720,7 @@ class RhythmGame {
   // --- settings ---
   _toSettings(){
     this.mode = 'settings';
+    this._stopTitleBgm();
     this._renderNamingChips('rk-naming-row');
     this._showScreen('rk-settings');
   }
@@ -2226,6 +2728,7 @@ class RhythmGame {
   // --- micSetup ---
   async _toMicSetup(){
     this.mode = 'micSetup';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁（echoCancellation OFFでスピーカー音がマイクに乗り判定を汚染する）
     this._micLevel = 0;
     this._micSetupDetected = null;
     const msgEl = document.getElementById('rk-mic-message');
@@ -2275,6 +2778,7 @@ class RhythmGame {
   // offsetSecを推定する。設定画面から直行・「もどる」で設定に戻る。
   _toCalib(){
     this.mode = 'calib';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁
     this._showScreen('rk-calib');
     this._startCalibRun();
   }
@@ -2391,6 +2895,7 @@ class RhythmGame {
   // --- play ---
   _startPlay(){
     this.mode = 'play';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁（laneモードでも画面共通のため一律停止）
     this._showScreen(null);
     const canvas = document.getElementById('rk-canvas');
     if (!this.highway){
@@ -2597,6 +3102,7 @@ class RhythmGame {
   _toTuner(){
     if (typeof unlock === 'function') unlock();
     this.mode = 'tuner';
+    this._stopTitleBgm(); // マイク使用画面はBGM厳禁
     this._tunerDetected = null;
     this._showScreen('rk-tuner');
     const canvas = document.getElementById('rk-canvas');
@@ -2874,7 +3380,7 @@ registerInstrument(INSTRUMENT_PIANO);
 // open_strings → doremi → tulip → bunbun → frets123 → kirakira → mary → kaeru → walking → rock_riff
 
 registerChart({
-  id: 'open_strings', title: 'かいほうげんマスター', level: 1,
+  id: 'open_strings', title: 'かいほうげんマスター', level: 1, emoji: '🎸',
   bpm: 70, countInBeats: 4,
   // E1 A1 D2 G2 の開放弦を2拍ずつ×3周
   notes: [
@@ -2895,7 +3401,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'doremi', title: 'ドレミのやま', level: 1,
+  id: 'doremi', title: 'ドレミのやま', level: 1, emoji: '🎵',
   bpm: 80, countInBeats: 4,
   // C2メジャースケール上行 → 下行
   notes: [
@@ -2919,7 +3425,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'tulip', title: 'チューリップ', level: 1,
+  id: 'tulip', title: 'チューリップ', level: 1, emoji: '🌷',
   bpm: 85, countInBeats: 4,
   // ドレミ ドレミ ソミレドレミレ / ドレミ ドレミ ソミレドレミド（フレーズ末は2拍）
   notes: [
@@ -2938,7 +3444,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'bunbun', title: 'ぶんぶんぶん', level: 1,
+  id: 'bunbun', title: 'ぶんぶんぶん', level: 1, emoji: '🐝',
   bpm: 80, countInBeats: 4,
   // ソミミ ファレレ ドレミファソソソ / ソミミ ファレレ ドミソソド（フレーズ末は2拍）
   notes: [
@@ -2957,7 +3463,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'frets123', title: 'ゆびのたいそう', level: 2,
+  id: 'frets123', title: 'ゆびのたいそう', level: 2, emoji: '✋',
   bpm: 80, countInBeats: 4,
   // 各弦でフレット0→1→2→3→2→1→0。E弦から順にA D Gへ
   notes: [
@@ -2994,7 +3500,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'kirakira', title: 'きらきらぼし', level: 2,
+  id: 'kirakira', title: 'きらきらぼし', level: 2, emoji: '⭐',
   bpm: 90, countInBeats: 4,
   // CCGGAAG FFEEDDC GGFFEED GGFFEED CCGGAAG FFEEDDC（各フレーズ末は2拍）
   notes: [
@@ -3015,7 +3521,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'mary', title: 'メリーさんのひつじ', level: 2,
+  id: 'mary', title: 'メリーさんのひつじ', level: 2, emoji: '🐑',
   bpm: 95, countInBeats: 4,
   // ミレドレミミミ レレレ ミソソ / ミレドレミミミミ レレミレド（フレーズ末は2拍）
   notes: [
@@ -3032,7 +3538,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'kaeru', title: 'かえるのうた', level: 2,
+  id: 'kaeru', title: 'かえるのうた', level: 2, emoji: '🐸',
   bpm: 95, countInBeats: 4,
   // ドレミファミレド ミファソラソファミ ドドドド ドドレレミミファファ ミレド
   notes: [
@@ -3051,7 +3557,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'walking', title: 'はじめてのウォーキング', level: 3,
+  id: 'walking', title: 'はじめてのウォーキング', level: 3, emoji: '🚶',
   bpm: 100, countInBeats: 4,
   // C(36,43,45,43) F(41,48,50,48) G(43,47,50,47) C(36,43,45,43)。最後にmidi36を2拍
   // fretboard表示のためfret<=7に収まる音域で書く（C2〜1オクターブ上のC3まで）
@@ -3066,7 +3572,7 @@ registerChart({
 });
 
 registerChart({
-  id: 'rock_riff', title: 'ロックのきほん', level: 3,
+  id: 'rock_riff', title: 'ロックのきほん', level: 3, emoji: '🤘',
   bpm: 110, countInBeats: 4,
   // E1の8分刻み8発 → G1 → A1 変化のシンプルなロックライン（2周）
   notes: [
@@ -3095,14 +3601,65 @@ const GAME_DEF = {
   theme: {
     bg: ['#1a1038', '#2a1a58'], laneLine: '#ffffff22', judgeLine: '#ffd34d',
     text: '#fff7e8', accent: '#ff8fb3',
-    mascot: { enable: true, cheer: ['いいね！', 'そのちょうし！', 'すごい！', 'てんさいや！'] },
+    mascot: {
+      enable: true,
+      cheer: [
+        'いいね！', 'そのちょうし！', 'すごい！', 'てんさいや！',
+        'ええやん！', 'ばっちこい！', 'のってきたで！',
+      ],
+      name: 'うめこ',
+      // 16x16の梅干しキャラ・ドット絵（pixel_art.jsのrkDrawPixelmapが読む形式）。
+      // '.'=透過。 a=本体(うめ色) c=ほっぺ d=ヘタ(葉) e=め f=にっこりくち
+      pixelmap: {
+        palette: { a: '#e75480', c: '#ffb6c9', d: '#5cb85c', e: '#2a1a3a', f: '#c23b56' },
+        grid: [
+          '.......dd.......',
+          '......dddd......',
+          '.....aaaaaa.....',
+          '...aaaaaaaaaa...',
+          '..aaaaaaaaaaaa..',
+          '.aaaaaaaaaaaaaa.',
+          '.aaaaaaaaaaaaaa.',
+          '.aaaaeaaaaeaaaa.',
+          '.aaccaaaaaaccaa.',
+          '.aaaaaffffaaaaa.',
+          '.aaaaaaaaaaaaaa.',
+          '.aaaaaaaaaaaaaa.',
+          '..aaaaaaaaaaaa..',
+          '...aaaaaaaaaa...',
+          '.....aaaaaa.....',
+          '.......aa.......',
+        ],
+      },
+    },
+  },
+  // タイトル/リザルト画面専用の短いBGMループ（bgmStart()/bgmStop()が読む）。
+  // Cメジャーペンタトニック中心・8拍・8bit風の口ずさめる短いフレーズ。
+  // play/micSetup/calib画面では鳴らさない（audio_synth.js bgmStartのコメント参照）。
+  titleBgm: {
+    bpm: 96,
+    patch: 'piano',
+    loop: [
+      { beat: 0, midi: 72, dur: 0.42 },
+      { beat: 1, midi: 67, dur: 0.42 },
+      { beat: 2, midi: 69, dur: 0.42 },
+      { beat: 3, midi: 67, dur: 0.42 },
+      { beat: 4, midi: 64, dur: 0.42 },
+      { beat: 5, midi: 62, dur: 0.42 },
+      { beat: 6, midi: 64, dur: 0.42 },
+      { beat: 7, midi: 60, dur: 1.4 },
+    ],
   },
 };
 
 // ---------------------------------------------------------------------------
 // 起動（games/<id>/game.js が定義した GAME_DEF を渡して状態機械を開始する）
 // ---------------------------------------------------------------------------
-if (typeof GAME_DEF !== 'undefined' && typeof createRhythmGame === 'function') createRhythmGame(GAME_DEF);
+if (typeof GAME_DEF !== 'undefined' && typeof createRhythmGame === 'function'){
+  const __rkGame = createRhythmGame(GAME_DEF);
+  // デバッグ/E2E/スクリーンショット撮影用ハンドル（本体ロジックはこれに依存しない）
+  if (typeof window !== 'undefined') window.__RK_GAME = __rkGame;
+}
 
 })();
 </script>

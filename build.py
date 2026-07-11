@@ -37,6 +37,7 @@ GAMES_DIR = ROOT / "games"
 # 結合順序（SPEC.md「build.py 結合順序」節に固定。勝手に変えない）。
 ENGINE_ORDER = [
     "audio_synth.js",
+    "pixel_art.js",
     "pitch_detector.js",
     "input_router.js",
     "highway.js",

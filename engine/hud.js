@@ -20,8 +20,14 @@
 
 function drawRkScoreHud(ctx, x, y, score, combo){
   ctx.save();
-  roundRect(ctx, x, y, 140, 56, 12);
-  ctx.fillStyle = 'rgba(255,250,252,0.55)';
+  // v2.0: カード調の下地を厚めに（layered alpha重ねの疑似シャドウ。shadowBlur不使用）
+  for (let i = 3; i >= 1; i--){
+    roundRect(ctx, x, y + i * 1.4, 140, 56, 16);
+    ctx.fillStyle = 'rgba(10,5,25,' + (0.05 * i) + ')';
+    ctx.fill();
+  }
+  roundRect(ctx, x, y, 140, 56, 16);
+  ctx.fillStyle = 'rgba(255,250,252,0.6)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = 1.5;
@@ -29,7 +35,7 @@ function drawRkScoreHud(ctx, x, y, score, combo){
   ctx.textAlign = 'left';
   ctx.fillStyle = '#3a2a5a';
   ctx.font = 'bold 16px "Hiragino Maru Gothic ProN", sans-serif';
-  ctx.fillText('SCORE ' + score, x + 8, y + 24);
+  ctx.fillText('⭐SCORE ' + score, x + 8, y + 24);
   if (combo > 0){
     ctx.fillStyle = '#ff5f97';
     ctx.font = 'bold 14px "Hiragino Maru Gothic ProN", sans-serif';
@@ -125,9 +131,16 @@ function drawRkTuner(ctx, canvasW, canvasH, detected, naming){
   ctx.restore();
 }
 
+// v2.0: リザルトのランク星きらめき用の呼び出し回数カウンタ。game_core.jsのdrawRkResultPanel
+// 呼び出し方(引数の形)は変えられないため、自分自身の呼ばれた回数を数えて時間軸の代わりにする
+// （Date.now/Math.random不使用・純粋に呼び出し回数ベースの決定論パルス。confetti側の
+// frame引数と同じ思想を、引数を増やさずhud.js内で完結させたもの）。
+let RK_RESULT_SPARKLE_TICK = 0;
+
 // stats: {perfect, good, miss}。isWaitMode=trueなら「クリア！」表示（rankは無視）。
 // ボタンはDOM側（game_core.js）が担当するため、ここではパネルの矩形情報だけ返す。
 function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
+  RK_RESULT_SPARKLE_TICK++;
   const pw = Math.min(300, canvasW - 40);
   const ph = 260;
   const px = canvasW / 2 - pw / 2;
@@ -146,6 +159,22 @@ function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
   ctx.fillStyle = '#ffd34d';
   ctx.font = 'bold 40px "Hiragino Maru Gothic ProN", sans-serif';
   ctx.fillText(isWaitMode ? 'クリア！' : rank, canvasW / 2, py + 70);
+
+  // ランク星のきらめき（rankテキスト周りに散らす小さな星。位置はindex固定・明滅だけtick依存）
+  const sparkleGlyphs = ['✦', '★', '✧'];
+  for (let i = 0; i < 6; i++){
+    const angle = (i / 6) * Math.PI * 2 + 0.3;
+    const radius = 74 + (i % 2) * 14;
+    const sx = canvasW / 2 + Math.cos(angle) * radius;
+    const sy = py + 60 + Math.sin(angle) * (radius * 0.55);
+    const twinkle = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(RK_RESULT_SPARKLE_TICK * 0.06 + i * 1.8));
+    ctx.save();
+    ctx.globalAlpha = twinkle;
+    ctx.fillStyle = '#ffe9a8';
+    ctx.font = (10 + (i % 3) * 4) + 'px sans-serif';
+    ctx.fillText(sparkleGlyphs[i % sparkleGlyphs.length], sx, sy);
+    ctx.restore();
+  }
 
   ctx.font = 'bold 18px "Hiragino Maru Gothic ProN", sans-serif';
   ctx.fillStyle = '#fff7e8';
@@ -167,9 +196,11 @@ function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
 // リザルト表示中だけ呼ぶ紙吹雪パーティクル。frameは呼び出し側が持つ整数カウンタ
 // （requestAnimationFrameごとに+1する想定）。乱数不使用: 粒ごとのindexをsin/cosの位相に
 // 使うことで、同じframe値なら常に同じ絵になる決定論描画にする。
-const RK_CONFETTI_COLORS = ['#ffd34d', '#ff8fb3', '#8fe0a0', '#66d9e8', '#ffa94d'];
+// v2.0: 密度24→40・色5→8にリッチ化。粒の1/3は丸、残りは角(四角/ひし形)にして単調さを消す
+// （形状もiだけで決まる決定論分岐・乱数不使用のまま）。
+const RK_CONFETTI_COLORS = ['#ffd34d', '#ff8fb3', '#8fe0a0', '#66d9e8', '#ffa94d', '#c9a0ff', '#ff7a7a', '#7ad9ff'];
 function drawRkConfetti(ctx, canvasW, canvasH, frame){
-  const n = 24;
+  const n = 40;
   ctx.save();
   for (let i = 0; i < n; i++){
     const xBase = ((Math.sin(i * 12.9898) * 0.5 + 0.5)) * canvasW;
@@ -182,7 +213,13 @@ function drawRkConfetti(ctx, canvasW, canvasH, frame){
     ctx.rotate(frame * 0.04 + i);
     ctx.globalAlpha = 0.85;
     ctx.fillStyle = RK_CONFETTI_COLORS[i % RK_CONFETTI_COLORS.length];
-    ctx.fillRect(-size / 2, -size / 2, size, size);
+    if (i % 3 === 0){
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-size / 2, -size / 2, size, size);
+    }
     ctx.restore();
   }
   ctx.restore();

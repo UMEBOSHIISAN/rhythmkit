@@ -296,6 +296,56 @@ lanes: [
 - 運指マッピング純関数 `rkFingerForFret(fret)` → {finger:0-4, name:string|null} をエンジンに置き、tests/test_finger.js で 0-7 全フレットの写像を機械チェック
 - 既存全テストPASS維持・決定論ビルド維持
 
+## v2.0 追加契約（2026-07-11 human指示: 「極限まで・視覚的に子供が分かりやすく・かっこよく可愛く楽しく・OSSで恥ずかしくないレベル」）
+
+### デザイン言語（全画面共通）
+
+- キャンディ/パステル調・丸角大きめ・やわらかい影・光るアクセント。子供が「おもちゃ箱」と感じる楽しさと、OSSショーケースとしての完成度を両立
+- アニメーションは時間ベース決定論（Math.random/Date.now禁止は不変。performance.now/AudioContext.currentTime由来の経過時間+index×sin/cosで散らす）
+- 過剰演出でプレイの視認性を壊さない（ノートと判定線が常に主役）
+
+### CHART 追加フィールド
+
+- `emoji`（省略可・既定'🎵'）: 選曲カードに出す絵文字（例: kaeru='🐸', kirakira='⭐', bunbun='🐝'）
+
+### GAME_DEF 追加フィールド
+
+```js
+mascot: {
+  enable: true, cheer: [...],            // 既存
+  name: 'うめこ',
+  pixelmap: { palette: {'a':'#e75480', ...}, grid: ['..aa..', ...] },  // 16x16程度のドット絵
+},
+titleBgm: { bpm: 96, patch: 'piano', loop: [ {beat:0, midi:72, dur:0.5}, ... ] },  // 8bit風の短いループ
+```
+
+### engine/pixel_art.js（新部品）
+
+- `rkDrawPixelmap(ctx, x, y, cellSize, pixelmap)` — palette/grid形式のドット絵を描く純描画関数（意味を知らない）
+- build.py ENGINE_ORDER に追加（audio_synth.js の後・pitch_detector.js の前でよい）
+
+### audio_synth.js 追加API
+
+- `bgmStart(titleBgmDef)` / `bgmStop()` — GAME_DEFのtitleBgmをループ再生する汎用シーケンサ（先読みスケジューリング・音量控えめmaster比0.35）
+- **鳴らしてよいのは title / result 画面のみ（micが止まっている画面）**。micSetup/calib/play では必ず bgmStop()（echoCancellation OFFのためスピーカー音がマイクに乗り、ピッチ判定を汚染する。この制約はコメントで明記）
+
+### 画面別の強化（担当分担の境界）
+
+**DOM層（template.html + game_core.jsの画面レンダリング）**:
+- タイトル: ロゴのバウンス/グラデ文字・背景に浮遊音符(CSS)・マスコットうめこ(canvas小窓でpixelmap+ゆらゆら)・曲リストを絵文字+星+🏆入りカードに
+- あそびかたオーバーレイ（初回のみ・localStorage `rk_tut_seen_<gameId>`）: 3コマ「①おとが おちてくる ②したの てと ばんごうを みて おさえる ③ひけたら あたり！」+「わかった！」ボタン。せっていから再表示可
+- micSetup/calib/result も同カード調に統一・resultはランク星のポップイン
+
+**canvas層（highway/fingerboard/hud）**:
+- ノート=宝石調（ハイライト+微細スパークル）・判定線=ビートで脈打つグロー・HIT=星バースト・背景=ゆっくり流れる音符/星（薄く）
+- 運指パネル: カード調の下地・手の絵をぷにっと丸く・指名ラベルをバッジ化
+- リザルト紙吹雪の密度/色をリッチに
+
+### スクリーンショット（OSSの顔・CC工程）
+
+- agent-browser で dist/umebass を開き、タイトル/プレイ(ガイドパネル込み)/リザルトを撮影 → `docs/screenshots/*.png` → README(ja/en) に埋め込み
+- スクショは生成物なので決定論対象外（README参照のみ）
+
 ## iPhone Safari 制約（実装の前提・違反したら動かない）
 
 1. AudioContext 生成/resume・getUserMedia はユーザータップのハンドラ内で行う

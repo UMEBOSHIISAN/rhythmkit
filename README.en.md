@@ -9,6 +9,10 @@
 >
 > rhythmkit is a zero-dependency, single-file HTML rhythm-game kit for learning real instruments: falling notes are judged by **pitch-detecting your actual instrument through the microphone** (autocorrelation/NSDF, down to bass E1 = 41.2 Hz). Instruments, songs and games are plug-in data files — no engine changes needed. Japanese kid-friendly UI. MIT licensed.
 
+| Title | Play (with fingering guide) | Result |
+|---|---|---|
+| ![title](docs/screenshots/title.png) | ![play](docs/screenshots/play.png) | ![result](docs/screenshots/result.png) |
+
 ## What it can do
 
 - **Practice mode**: notes stop at the judge line and wait until you play the correct pitch (no misses, take as long as you like). This is the main mode for actual learning.

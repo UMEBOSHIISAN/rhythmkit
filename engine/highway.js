@@ -53,6 +53,8 @@ const RK_LOOKAHEAD_SEC = 4;      // 先読み表示4秒ぶん
 const RK_JUDGE_LINE_RATIO_PITCH = 0.70;
 const RK_JUDGE_LINE_RATIO_LANE = 0.82;
 const RK_PANEL_LANDSCAPE_CONTENT_RATIO = 0.55; // 横長×pitch時、ハイウェイに残す幅の割合（残り45%がパネル）
+const RK_BG_FLOATERS = ['♪', '♫', '★', '✦']; // 背景に薄く流す浮遊グリフ（v2.0・楽器知識なし）
+const RK_JUDGE_PULSE_PERIOD_SEC = 1.2; // 判定線グローの脈動周期（bpm情報なしでも成立する固定値）
 
 class Highway {
   constructor(canvas, instrument, naming){
@@ -62,6 +64,11 @@ class Highway {
     this.naming = naming || 'doremi';
     this.hitFx = []; // {x, y, timer, label}
     this.comboPulse = 0; // コンボ5刻み到達時の画面パルス残り秒（0で無効）
+    // v2.0: 判定線レインボー化（コンボ20+）のための内部コンボ計数。
+    // judge.jsのcombo値はdraw()の引数に無いため、spawnHitFx/spawnMissFxの呼び出し
+    // パターン（hitで+1・missで0）がjudge.combo増減と完全に一致することを使って
+    // Highway内部だけで再現する（game_core.js側の変更は不要）。
+    this._comboCount = 0;
     this.laneButtons = [];
     this.judgeMode = 'lane'; // 既定lane（tuner等、setJudgeModeが呼ばれない画面での安全側デフォルト）
     this.fit();
@@ -69,6 +76,7 @@ class Highway {
   setInstrument(instrument){
     this.instrument = instrument;
     this._layoutLanes();
+    this._comboCount = 0; // 新しい曲/楽器選択のたびにレインボー判定用コンボもリセット
   }
   setNaming(naming){ this.naming = naming; }
   // game_core._startPlay()がjudgeMode確定後に呼ぶ。lane以外は全部'lane'扱い（安全側）。
@@ -120,9 +128,10 @@ class Highway {
     return this.judgeY - (dt / RK_LOOKAHEAD_SEC) * this.judgeY;
   }
   spawnHitFx(laneIndex, rank){
+    this._comboCount++; // game_core.jsはヒット確定時のみこれを呼ぶ＝judge.combo++と同じタイミング
     const label = rank === 'perfect' ? 'パーフェクト！' : (rank === 'good' ? 'グッド！' : null);
     if (!label || this.laneX == null) return;
-    this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, label, cheer: false });
+    this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, burst: true, label, cheer: false });
   }
   // マスコット応援テキストのポップ（GAME_DEF.theme.mascot.cheer由来の文言を受け取って表示するだけ。
   // 文言の中身・選び方は一切知らない＝呼び出し側(game_core.js)が決める）。リング演出は出さず
@@ -134,6 +143,7 @@ class Highway {
   }
   // MISS演出（練習寄り: 「おしい！」の柔らかいポップ。リングは出さず責める見た目にしない）
   spawnMissFx(laneIndex){
+    this._comboCount = 0; // game_core.jsはmiss確定時のみこれを呼ぶ＝judge.combo=0と同じタイミング
     if (this.laneX == null || this.laneX[laneIndex] == null) return;
     this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, label: 'おしい！', cheer: false, miss: true });
   }
@@ -149,6 +159,28 @@ class Highway {
       if (fx.timer <= 0) this.hitFx.splice(i, 1);
     }
     if (this.comboPulse > 0) this.comboPulse = Math.max(0, this.comboPulse - dt);
+  }
+  // v2.0: 背景の浮遊音符/星（決定論・songTimeSecのみで散らす・8個以下・alpha低めでノートの
+  // 視認性を絶対に壊さない。contentWまで＝右パネル領域には出さない）。
+  _drawBackgroundFloaters(songTimeSec){
+    const ctx = this.ctx;
+    const n = 8;
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (let i = 0; i < n; i++){
+      const glyph = RK_BG_FLOATERS[i % RK_BG_FLOATERS.length];
+      const xBase = ((Math.sin(i * 7.31 + 1) * 0.5 + 0.5)) * this.contentW;
+      const drift = Math.sin(songTimeSec * 0.15 + i * 2.1) * (this.contentW * 0.06);
+      const speed = 8 + (i % 3) * 3; // px/秒。個体差はi由来（乱数不使用）
+      const y = this.h - ((songTimeSec * speed + i * 71) % (this.h + 60));
+      const alpha = 0.06 + 0.06 * (0.5 + 0.5 * Math.sin(songTimeSec * 0.4 + i));
+      const size = 14 + (i % 3) * 5;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = size + 'px sans-serif';
+      ctx.fillText(glyph, xBase + drift, y);
+    }
+    ctx.restore();
   }
   // runners: JudgeEngine.runners（judge.js の RkNoteRunner 配列）
   // lane modeのタッチボタン列は input_router.js が実DOM要素として生成し、
@@ -166,6 +198,9 @@ class Highway {
     bgGrad.addColorStop(1, bg[1] || bg[0] || '#2a1038');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, this.w, this.h);
+
+    // v2.0: 背景にゆっくり流れる音符/星（薄く・ノートより手前に出さない=最初に描く）
+    this._drawBackgroundFloaters(songTimeSec);
 
     // レーンごとの薄色フィル（レーン色を淡く敷いて視覚リンクを作る）
     for (let i = 0; i < this.instrument.lanes.length; i++){
@@ -186,13 +221,21 @@ class Highway {
     }
     // 判定線（グロー: shadowBlurは高コストなので、低alphaの太線を下敷きにして重ね描きする）。
     // contentWまで（横長×pitch時は右パネル領域に判定線を伸ばさない）。
+    // v2.0: ビートに脈打つグロー。呼び出し側からbpm/beatPhaseを受け取れない
+    // （draw()の公開引数を変えない制約）ため、songTimeSecだけから一定周期(1.2秒)の
+    // ゆったりしたパルスを作る＝拍情報が無くても「脈打っている」体感は十分出せる。
+    const pulse01 = 0.5 + 0.5 * Math.sin((songTimeSec / RK_JUDGE_PULSE_PERIOD_SEC) * Math.PI * 2);
+    // コンボ20+のときだけ、さりげなく判定線を虹色に（レインボー色相はsongTimeSec由来で決定論）
+    const judgeColor = this._comboCount >= 20
+      ? 'hsl(' + Math.round((songTimeSec * 60) % 360) + ',85%,65%)'
+      : (theme.judgeLine || '#ffd34d');
     ctx.save();
-    ctx.globalAlpha = 0.35;
-    ctx.strokeStyle = theme.judgeLine || '#ffd34d';
-    ctx.lineWidth = 10;
+    ctx.globalAlpha = 0.22 + 0.26 * pulse01;
+    ctx.strokeStyle = judgeColor;
+    ctx.lineWidth = 9 + 4 * pulse01;
     ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.contentW, this.judgeY); ctx.stroke();
     ctx.restore();
-    ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+    ctx.strokeStyle = judgeColor;
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.contentW, this.judgeY); ctx.stroke();
 
@@ -224,6 +267,37 @@ class Highway {
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
       ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.restore();
+      // v2.0: 宝石調ハイライト+微細スパークル（文字を描く前だけに重ねる薄い演出。
+      // フレット数字/音名の可読性を落とさないよう、色は白のみ・alphaは低め）。
+      ctx.save();
+      ctx.globalAlpha = (r.state === 'hit' ? 0.35 : 1) * 0.4;
+      ctx.beginPath();
+      ctx.ellipse(x - badgeR * 0.28, y - badgeR * 0.32, badgeR * 0.5, badgeR * 0.3, -0.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.restore();
+      if (r.state !== 'hit'){
+        // スパークル位相はnote(midi+targetSec)由来＝ノート単位で固定・songTimeSecでだけ瞬く
+        const seed = r.note.midi * 1.7 + r.targetSec * 0.9;
+        for (let s = 0; s < 2; s++){
+          const twinkle = 0.3 + 0.3 * Math.sin(songTimeSec * 3 + seed + s * 2.4);
+          if (twinkle <= 0) continue;
+          const sa = seed + s * 2.6;
+          const sx = x + Math.cos(sa) * badgeR * 0.62;
+          const sy = y + Math.sin(sa) * badgeR * 0.62;
+          ctx.save();
+          ctx.globalAlpha = twinkle;
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - 3); ctx.lineTo(sx + 1.2, sy - 1.2); ctx.lineTo(sx + 3, sy); ctx.lineTo(sx + 1.2, sy + 1.2);
+          ctx.lineTo(sx, sy + 3); ctx.lineTo(sx - 1.2, sy + 1.2); ctx.lineTo(sx - 3, sy); ctx.lineTo(sx - 1.2, sy - 1.2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.save();
       ctx.fillStyle = '#1a1030';
       ctx.textAlign = 'center';
       ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
@@ -248,6 +322,22 @@ class Highway {
         ctx.beginPath();
         ctx.arc(fx.x, fx.y, 20 + fx.ring * 18, 0, Math.PI * 2);
         ctx.stroke();
+        // v2.0: 星バースト（既存リングに加え、8方向へ短い光の線を放射させて「星形」感を足す）
+        if (fx.burst){
+          ctx.save();
+          ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+          ctx.lineWidth = 2.5;
+          for (let b = 0; b < 8; b++){
+            const ba = (b / 8) * Math.PI * 2;
+            const inner = 10 + fx.ring * 6;
+            const outer = 10 + fx.ring * 22;
+            ctx.beginPath();
+            ctx.moveTo(fx.x + Math.cos(ba) * inner, fx.y + Math.sin(ba) * inner);
+            ctx.lineTo(fx.x + Math.cos(ba) * outer, fx.y + Math.sin(ba) * outer);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
       }
       ctx.fillStyle = fx.miss ? (theme.text || '#fff7e8') : (theme.accent || '#ff8fb3');
       ctx.textAlign = 'center';

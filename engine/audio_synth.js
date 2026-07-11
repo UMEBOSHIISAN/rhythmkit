@@ -11,7 +11,16 @@
  *   instruments/<id>.js の synthPatch フィールドから渡ってくる契約）。
  *
  * 公開API（グローバル関数・const）: getCtx() / unlock() / playNote(midi, opts) /
- *   playSfx(name) / metronome.start(bpm, onTick) / metronome.stop()
+ *   playSfx(name) / metronome.start(bpm, onTick) / metronome.stop() /
+ *   bgmStart(titleBgmDef) / bgmStop()
+ *
+ * v2.0 titleBgm: GAME_DEF.titleBgm（{bpm, patch, loop:[{beat,midi,dur?}...]}）を
+ *   先読みスケジューリングでループ再生する汎用シーケンサ。音量はmaster比0.35固定
+ *   （BGMはSFXやノート音より控えめにする）。多重start防止のためbgmStart()は
+ *   内部で必ずbgmStop()してから開始する。
+ *   ⚠️ 鳴らしてよいのは title / result 画面のみ（micが止まっている画面）。
+ *   micSetup/calib/play では必ず bgmStop() を呼ぶこと — echoCancellation OFFの
+ *   ためスピーカーから出たBGMがマイクに回り込み、ピッチ判定を汚染する。
  *
  * v1.1音質感アップ: SYNTH_PATCHES に pitchDrop / filterEnv という汎用パラメータを
  *   追加した（楽器名で分岐する専用ロジックではなく、パッチデータが持つ値をエンジンが
@@ -28,6 +37,8 @@ const __audioState = {
   master: null,
   unlocked: false,
   metroTimer: null,
+  bgmTimer: null,
+  bgmPlaying: false,
 };
 
 // パッチ名 → 音色パラメータ。SPEC:
@@ -239,3 +250,68 @@ const metronome = {
     }
   },
 };
+
+// 1本のBGMノートをt0からdur秒鳴らす。playNote()と同じ倍音構成をパッチから読むが、
+// 出力ゲインはBGM用に master比0.35固定（呼び出し側のvel指定は受け付けない）。
+function bgmScheduleNote(ctx, patch, midi, t0, dur) {
+  const freq = midiToFreq(midi);
+  const out = ctx.createGain();
+  out.gain.value = 0.35;
+  out.connect(__audioState.master);
+  playOscLayer(ctx, out, patch.wave, freq, 1, 1, patch.filterHz, dur, t0, patch.pitchDrop, patch.filterEnv);
+  if (patch.harmonic2Gain) {
+    playOscLayer(ctx, out, patch.wave, freq, 2, patch.harmonic2Gain, patch.filterHz, dur, t0);
+  }
+  if (patch.harmonic3Gain) {
+    playOscLayer(ctx, out, patch.wave, freq, 3, patch.harmonic3Gain, patch.filterHz, dur, t0);
+  }
+}
+
+// bgmStart(titleBgmDef) — GAME_DEF.titleBgm（{bpm, patch, loop:[{beat,midi,dur?}...]}）を
+// 先読みスケジューリングでループ再生する。loopの1周の長さは「loop内の最大beat値+1拍」を
+// 自前で算出する（明示的なloopBeatsフィールドは持たない・呼び出し側はbeatを整数の
+// ステップ位置として書く前提）。ctx未生成（unlock前）や空loopなら何もしない。
+// 多重start対策として必ずbgmStop()してから開始する。
+function bgmStart(def) {
+  bgmStop();
+  const ctx = __audioState.ctx;
+  if (!ctx || !def || !def.loop || !def.loop.length) return;
+  const patchName = def.patch && SYNTH_PATCHES[def.patch] ? def.patch : DEFAULT_PATCH_NAME;
+  const patch = SYNTH_PATCHES[patchName];
+  const secPerBeat = 60 / (def.bpm || 100);
+  let loopBeats = 0;
+  for (let i = 0; i < def.loop.length; i++) {
+    if (def.loop[i].beat > loopBeats) loopBeats = def.loop[i].beat;
+  }
+  loopBeats += 1;
+  const loopDurSec = loopBeats * secPerBeat;
+  const lookahead = 0.15;
+  let cycleStart = ctx.currentTime + 0.05;
+  let nextIdx = 0;
+  __audioState.bgmPlaying = true;
+  __audioState.bgmTimer = setInterval(() => {
+    if (!__audioState.bgmPlaying) return;
+    const horizon = ctx.currentTime + lookahead;
+    while (true) {
+      if (nextIdx >= def.loop.length) {
+        nextIdx = 0;
+        cycleStart += loopDurSec;
+      }
+      const note = def.loop[nextIdx];
+      const t = cycleStart + note.beat * secPerBeat;
+      if (t >= horizon) break;
+      const dur = note.dur != null ? note.dur * secPerBeat : secPerBeat * 0.8;
+      bgmScheduleNote(ctx, patch, note.midi, t, dur);
+      nextIdx++;
+    }
+  }, 30);
+}
+
+// bgmStop() — 冪等。timerが無くても安全に呼べる（画面遷移のたび呼んでよい）。
+function bgmStop() {
+  __audioState.bgmPlaying = false;
+  if (__audioState.bgmTimer) {
+    clearInterval(__audioState.bgmTimer);
+    __audioState.bgmTimer = null;
+  }
+}
