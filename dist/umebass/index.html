@@ -1,0 +1,2565 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#14092b">
+<title>うめベース！</title>
+<style>
+  :root{ color-scheme: dark; }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body{
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #14092b; overflow: hidden;
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  body{
+    position: relative;
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Maru Gothic Pro", "Hiragino Kaku Gothic ProN", sans-serif;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #rk-stage{
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #rk-canvas{
+    background: #14092b;
+    touch-action: none;
+    display: block;
+    width: 100%; height: 100%;
+  }
+  #rk-lane-buttons{
+    position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  #rk-lane-buttons button{
+    position: absolute;
+    pointer-events: auto;
+    touch-action: none;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.35);
+    color: #fff7e8;
+    font-weight: 900;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  #rk-overlay{
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+  .rk-screen{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 10px;
+    padding: calc(14px + env(safe-area-inset-top)) 18px calc(14px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    pointer-events: auto;
+    background: linear-gradient(180deg, #1a1038, #2a1a58);
+    color: #fff7e8;
+  }
+  .rk-hidden{ display: none !important; }
+  /* tuner/result はcanvas描画(drawRkTuner/drawRkResultPanel)を見せる必要があるため透過にする。
+     ボタンの操作性は .rk-screen の pointer-events:auto のままでよい（背景が消えるだけ）。 */
+  #rk-tuner, #rk-result{ background: transparent; }
+  .rk-h1{ font-size: 26px; font-weight: 900; margin: 4px 0 0; text-align: center; color: #ffd34d; }
+  .rk-h2{ font-size: 20px; font-weight: 900; margin: 4px 0; text-align: center; }
+  .rk-sub{ font-size: 14px; margin: 0; text-align: center; color: #e6d8ff; }
+  .rk-block{ width: 100%; max-width: 420px; }
+  .rk-label{ font-size: 13px; font-weight: 700; color: #cbb8e0; margin-bottom: 6px; }
+  .rk-chip-row{ display: flex; flex-wrap: wrap; gap: 8px; }
+  .rk-chip{
+    flex: 1 1 auto; min-width: 84px;
+    padding: 12px 10px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #fff7e8; font-size: 15px; font-weight: 700;
+    text-align: center;
+  }
+  .rk-chip.rk-active{ background: #ff8fb3; border-color: #ff8fb3; color: #2a1030; }
+  .rk-song-list{ display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .rk-song{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.06); font-size: 15px; font-weight: 700;
+  }
+  .rk-song.rk-active{ background: rgba(255,211,77,0.22); border-color: #ffd34d; }
+  .rk-song.rk-disabled{ opacity: 0.35; }
+  .rk-song-right{ display: flex; align-items: center; gap: 8px; }
+  .rk-song-stars{ font-size: 13px; color: #ffd34d; }
+  .rk-song-best{ font-size: 12px; color: #ffd34d; white-space: nowrap; }
+  .rk-row{ display: flex; gap: 12px; justify-content: center; width: 100%; max-width: 420px; margin-top: auto; padding-top: 8px; }
+  button{ font-family: inherit; border: none; cursor: pointer; }
+  .rk-btn-primary, .rk-btn-secondary{
+    flex: 1 1 auto; min-height: 56px; border-radius: 20px; font-size: 17px; font-weight: 900;
+    padding: 10px 14px;
+  }
+  .rk-btn-primary{ background: #ff8fb3; color: #2a1030; }
+  .rk-btn-secondary{ background: rgba(255,255,255,0.12); color: #fff7e8; border: 2px solid rgba(255,255,255,0.3); }
+  .rk-corner{ position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 16px; min-height: 44px; }
+  #rk-offset-slider{ width: 100%; height: 40px; }
+  #rk-mic-meter-wrap{ width: 100%; max-width: 340px; }
+  #rk-mic-meter-canvas{ width: 100%; height: 24px; }
+</style>
+</head>
+<body>
+<div id="rk-stage">
+  <canvas id="rk-canvas" width="375" height="667"></canvas>
+  <div id="rk-lane-buttons"></div>
+</div>
+<div id="rk-overlay">
+  <section id="rk-title" class="rk-screen">
+    <h1 class="rk-h1" id="rk-game-title"></h1>
+    <p class="rk-sub" id="rk-game-subtitle"></p>
+    <div class="rk-block">
+      <div class="rk-label">がっき</div>
+      <div class="rk-chip-row" id="rk-instrument-row"></div>
+    </div>
+    <div class="rk-block">
+      <div class="rk-label">モード</div>
+      <div class="rk-chip-row" id="rk-mode-row"></div>
+    </div>
+    <div class="rk-block" style="flex:1 1 auto; min-height:0;">
+      <div class="rk-label">きょく</div>
+      <div class="rk-song-list" id="rk-song-list"></div>
+    </div>
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-settings">せってい</button>
+      <button class="rk-btn-primary" id="rk-btn-start">はじめる</button>
+      <button class="rk-btn-secondary" id="rk-btn-tuner">チューナー</button>
+    </div>
+  </section>
+
+  <section id="rk-settings" class="rk-screen rk-hidden">
+    <h2 class="rk-h2">せってい</h2>
+    <div class="rk-block">
+      <div class="rk-label" id="rk-offset-label">タイミングのずれ調整</div>
+      <input type="range" id="rk-offset-slider" min="-0.3" max="0.3" step="0.01" value="-0.12">
+    </div>
+    <div class="rk-block">
+      <div class="rk-label">おとの よみかた</div>
+      <div class="rk-chip-row" id="rk-naming-row"></div>
+    </div>
+    <div class="rk-row">
+      <button class="rk-btn-primary" id="rk-btn-settings-back">もどる</button>
+    </div>
+  </section>
+
+  <section id="rk-micsetup" class="rk-screen rk-hidden">
+    <h2 class="rk-h2">マイクじゅんび</h2>
+    <p class="rk-sub" id="rk-mic-message">がっきを マイクに ちかづけて おとを だしてね</p>
+    <div id="rk-mic-meter-wrap"><canvas id="rk-mic-meter-canvas" width="280" height="24"></canvas></div>
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-mic-skip">タップであそぶ</button>
+      <button class="rk-btn-primary" id="rk-btn-mic-ok">OK！はじめる</button>
+    </div>
+  </section>
+
+  <section id="rk-tuner" class="rk-screen rk-hidden">
+    <button class="rk-btn-secondary rk-corner" id="rk-btn-tuner-back">もどる</button>
+  </section>
+
+  <section id="rk-result" class="rk-screen rk-hidden">
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-song-select">きょくをえらぶ</button>
+      <button class="rk-btn-primary" id="rk-btn-retry">もういちど</button>
+    </div>
+  </section>
+</div>
+<script>
+'use strict';
+(function(){
+
+/* ==========================================================================
+ * rhythmkit game — single-file canvas rhythm game (build.py 生成物)
+ *
+ * このファイルは build.py が template.html + engine/*.js + instruments/*.js +
+ * charts/*.js + games/<id>/game.js を結合して生成した成果物。直接編集しない
+ * （各ソースを編集して python3 build.py <id> を再実行する）。
+ *
+ * 部品構成:
+ *   template.html            - CSS / canvas・DOM要素 / viewport フィット（このファイル）
+ *   engine/audio_synth.js    - Web Audio 手続き合成（プレビュー音/SFX/iOS unlock）
+ *   engine/pitch_detector.js - マイク→ピッチ検出（自己相関MPM）
+ *   engine/input_router.js   - mic/touch/keyboard を統一入力イベントに正規化
+ *   engine/highway.js        - 落下ノートの縦スクロール描画（canvas）
+ *   engine/judge.js          - タイミング×音程の判定・スコア計算
+ *   engine/hud.js            - スコア/コンボ/進行バー/マイクレベル/チューナー表示
+ *   engine/game_core.js      - レジストリ + 状態機械（boot/title/micSetup/play/result/tuner）
+ *   instruments/*.js         - INSTRUMENT_DEF（楽器ごとのレーン・音域・判定設定）
+ *   charts/*.js               - CHART（曲ごとのノート譜面）
+ *   games/<id>/game.js       - GAME_DEF（テーマ・キャラ・収録曲の選定）
+ *
+ * 新しい楽器/曲の作り方は rhythmkit/README.md を参照。
+ * ========================================================================== */
+
+// ---------------------------------------------------------------------------
+// エンジン（汎用部品）
+// ---------------------------------------------------------------------------
+/*
+ * audio_synth.js — 汎用 Web Audio 手続き合成エンジン（アセットゼロ）
+ *
+ * 何をする部品か: 音源ファイルを一切使わず、Web Audio の発振器だけでノート音・SFX・
+ *   メトロノームを鳴らす。iOS Safari の自動再生制限に対応する unlock() を持ち、
+ *   AudioContext のシングルトンをこのファイルが所有して getCtx() で他部品（
+ *   pitch_detector.js の PitchDetector.create({ctx}) 等）に共有する。
+ * 外部依存: Web Audio API（AudioContext）のみ。
+ * 差し替えポイント: SYNTH_PATCHES はパッチ名 → 音色パラメータのテーブル。新しい
+ *   楽器の音色を足す場合はここにキーを追加する（パッチ名の値そのものは
+ *   instruments/<id>.js の synthPatch フィールドから渡ってくる契約）。
+ *
+ * 公開API（グローバル関数・const）: getCtx() / unlock() / playNote(midi, opts) /
+ *   playSfx(name) / metronome.start(bpm, onTick) / metronome.stop()
+ *
+ * v1.1音質感アップ: SYNTH_PATCHES に pitchDrop / filterEnv という汎用パラメータを
+ *   追加した（楽器名で分岐する専用ロジックではなく、パッチデータが持つ値をエンジンが
+ *   読むだけ・エンジン純度は維持）。pitchDrop=立ち上がり数十msでピッチを高音から
+ *   目標音へ落とす（プラック感）。filterEnv=同様にローパスの開口を一瞬広げてから
+ *   閉じる（ピック/アタックのトランジェント）。どちらも省略可（未指定パッチは
+ *   従来どおり定常値のまま鳴る）。
+ */
+
+// 可変状態はここに集約する（トップレベル束縛は function宣言 + const オブジェクトのみ、
+// という規約を守るため、束縛自体は const にしてプロパティだけ書き換える）。
+const __audioState = {
+  ctx: null,
+  master: null,
+  unlocked: false,
+  metroTimer: null,
+};
+
+// パッチ名 → 音色パラメータ。SPEC:
+//   bass  = 三角波+ローパス+短decay（低域が痩せないよう倍音を1つ足す）+プラック
+//           アタック（pitchDrop/filterEnv。基音のみに適用・倍音レイヤーには適用しない）
+//   piano = 正弦×2倍音+3倍音少量+decay（アタックはピアノらしく素直な立ち上がりのまま）
+//   guitar= のこぎり波+ローパス
+const SYNTH_PATCHES = {
+  bass: {
+    wave: 'triangle', filterHz: 900, decay: 0.34, harmonic2Gain: 0.18,
+    // 開始45msで+4半音上から目標ピッチへ落ちる＝弦を弾いた瞬間のピッチベンド感
+    pitchDrop: { semitones: 4, time: 0.045 },
+    // ローパスを一瞬2600Hzまで開いてから900Hzへ閉じる＝ピック/指のアタック
+    filterEnv: { startHz: 2600, time: 0.07 },
+  },
+  piano: { wave: 'sine', filterHz: null, decay: 0.9, harmonic2Gain: 0.5, harmonic3Gain: 0.14 },
+  guitar: { wave: 'sawtooth', filterHz: 2200, decay: 0.55, harmonic2Gain: 0 },
+};
+const DEFAULT_PATCH_NAME = 'bass';
+
+function getCtx() {
+  return __audioState.ctx;
+}
+
+// iOS unlock: 最初のタップ内で呼ぶこと（AudioContext生成/resumeはユーザー操作内が前提）。
+// 2回目以降は既存ctxをresumeするだけの冪等呼び出し。
+function unlock() {
+  if (__audioState.unlocked) {
+    if (__audioState.ctx && __audioState.ctx.state === 'suspended') __audioState.ctx.resume();
+    return __audioState.ctx;
+  }
+  __audioState.unlocked = true;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  __audioState.ctx = new Ctx();
+  __audioState.master = __audioState.ctx.createGain();
+  __audioState.master.gain.value = 0.6;
+  __audioState.master.connect(__audioState.ctx.destination);
+  // iOS unlock定石: 無音バッファを一度再生してAudioContextを確実に起こす
+  const silentBuf = __audioState.ctx.createBuffer(1, 1, 22050);
+  const silentSrc = __audioState.ctx.createBufferSource();
+  silentSrc.buffer = silentBuf;
+  silentSrc.connect(__audioState.ctx.destination);
+  silentSrc.start(0);
+  if (__audioState.ctx.state === 'suspended') __audioState.ctx.resume();
+  return __audioState.ctx;
+}
+
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+// 1つの発振器レイヤー（基音 or 倍音）をt0からdur秒のエンベロープで鳴らす。
+// pitchDrop: {semitones, time} を渡すと開始周波数を高くしてtime秒で目標へ落とす（プラック感）。
+// filterEnv: {startHz, time} を渡すとローパスをstartHzから開始しtime秒でfilterHzへ閉じる。
+// 両方省略時は従来どおり定常値（後方互換）。
+function playOscLayer(ctx, out, waveType, freq, freqMul, gainMul, filterHz, dur, t0, pitchDrop, filterEnv) {
+  const osc = ctx.createOscillator();
+  osc.type = waveType;
+  const targetFreq = freq * freqMul;
+  if (pitchDrop && pitchDrop.semitones > 0) {
+    const startFreq = targetFreq * Math.pow(2, pitchDrop.semitones / 12);
+    osc.frequency.setValueAtTime(startFreq, t0);
+    osc.frequency.exponentialRampToValueAtTime(targetFreq, t0 + pitchDrop.time);
+  } else {
+    osc.frequency.setValueAtTime(targetFreq, t0);
+  }
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(gainMul, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  let node = osc;
+  if (filterHz) {
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    if (filterEnv && filterEnv.startHz > filterHz) {
+      f.frequency.setValueAtTime(filterEnv.startHz, t0);
+      f.frequency.exponentialRampToValueAtTime(filterHz, t0 + filterEnv.time);
+    } else {
+      f.frequency.value = filterHz;
+    }
+    osc.connect(f);
+    node = f;
+  }
+  node.connect(g);
+  g.connect(out);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
+}
+
+// playNote(midi, {patch, dur, vel}) — プレビュー再生・れんしゅうモードの正解音などに使う。
+// patch: SYNTH_PATCHES のキー（未知パッチ名はDEFAULT_PATCH_NAMEにフォールバック）
+// dur: 秒（省略時はパッチ既定のdecay）。vel: 0-1（省略時0.8）
+function playNote(midi, opts) {
+  const ctx = __audioState.ctx;
+  if (!ctx) return;
+  opts = opts || {};
+  const patchName = opts.patch && SYNTH_PATCHES[opts.patch] ? opts.patch : DEFAULT_PATCH_NAME;
+  const patch = SYNTH_PATCHES[patchName];
+  const dur = opts.dur != null ? opts.dur : patch.decay;
+  const vel = opts.vel != null ? opts.vel : 0.8;
+  const freq = midiToFreq(midi);
+  const t0 = ctx.currentTime;
+  const out = ctx.createGain();
+  out.gain.value = vel;
+  out.connect(__audioState.master);
+
+  // pitchDrop/filterEnv は基音レイヤーのみに適用する（倍音まで揺らすと音程感が濁るため）。
+  playOscLayer(ctx, out, patch.wave, freq, 1, 1, patch.filterHz, dur, t0, patch.pitchDrop, patch.filterEnv);
+  if (patch.harmonic2Gain) {
+    playOscLayer(ctx, out, patch.wave, freq, 2, patch.harmonic2Gain, patch.filterHz, dur, t0);
+  }
+  if (patch.harmonic3Gain) {
+    playOscLayer(ctx, out, patch.wave, freq, 3, patch.harmonic3Gain, patch.filterHz, dur, t0);
+  }
+}
+
+function scheduleTone(ctx, t0, freq, dur, gain, type) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(gain, t0 + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g);
+  g.connect(__audioState.master);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.03);
+}
+
+function scheduleSweep(ctx, t0, freqFrom, freqTo, dur, gain, type) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freqFrom, t0);
+  osc.frequency.exponentialRampToValueAtTime(freqTo, t0 + dur);
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.02);
+  osc.connect(g);
+  g.connect(__audioState.master);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
+}
+
+// SFX名 → 実際のスケジューリング。t0を外から与えられるようにして、
+// メトロノームの先読みスケジューリングと playSfx() の即時再生の両方から使う。
+function scheduleSfxAt(name, t0) {
+  const ctx = __audioState.ctx;
+  if (!ctx) return;
+  if (name === 'perfect') {
+    scheduleTone(ctx, t0, 1200, 0.09, 0.5, 'sine');
+    scheduleTone(ctx, t0 + 0.06, 1800, 0.14, 0.42, 'sine');
+  } else if (name === 'good') {
+    scheduleTone(ctx, t0, 700, 0.12, 0.4, 'triangle');
+  } else if (name === 'miss') {
+    // v1.1: 下降スイープ（責められてる感）をやめ、短く静かな2音の「ぽて」に変更。
+    // 「おしい！」表示に合わせ、叱られている印象を与えない音量・音域にする。
+    scheduleTone(ctx, t0, 349.23, 0.08, 0.22, 'sine');
+    scheduleTone(ctx, t0 + 0.06, 293.66, 0.1, 0.16, 'sine');
+  } else if (name === 'cheer') {
+    // コンボ5刻みの応援用。perfect(高音2音)/fanfare(リザルト4音+伸ばし)と被らないよう、
+    // 明るい短い上昇アルペジオ（矩形波で少しゲームらしい輝き）にする。
+    const notes = [659.25, 830.61, 1046.5]; // E5 - G#5 - C6
+    for (let i = 0; i < notes.length; i++) {
+      scheduleTone(ctx, t0 + i * 0.055, notes[i], 0.1, 0.32, 'square');
+    }
+  } else if (name === 'fanfare') {
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    for (let i = 0; i < notes.length; i++) {
+      scheduleTone(ctx, t0 + i * 0.09, notes[i], 0.22, 0.4, 'triangle');
+    }
+    scheduleTone(ctx, t0 + notes.length * 0.09, notes[notes.length - 1] * 1.5, 0.4, 0.35, 'triangle');
+  } else if (name === 'metro') {
+    scheduleTone(ctx, t0, 1600, 0.03, 0.28, 'square');
+  }
+}
+
+// playSfx(name) — 'perfect' | 'good' | 'miss' | 'cheer' | 'fanfare' | 'metro' を即時再生
+function playSfx(name) {
+  const ctx = __audioState.ctx;
+  if (!ctx) return;
+  scheduleSfxAt(name, ctx.currentTime);
+}
+
+// メトロノーム: count-in等で使う。先読みスケジューリングでタイミングのブレを抑える。
+const metronome = {
+  start(bpm, onTick) {
+    metronome.stop();
+    const ctx = __audioState.ctx;
+    if (!ctx) return;
+    const secPerBeat = 60 / bpm;
+    const lookahead = 0.12;
+    let nextBeatTime = ctx.currentTime + 0.05;
+    let beat = 0;
+    __audioState.metroTimer = setInterval(() => {
+      while (nextBeatTime < ctx.currentTime + lookahead) {
+        scheduleSfxAt('metro', nextBeatTime);
+        if (typeof onTick === 'function') onTick(beat, nextBeatTime);
+        nextBeatTime += secPerBeat;
+        beat++;
+      }
+    }, 25);
+  },
+  stop() {
+    if (__audioState.metroTimer) {
+      clearInterval(__audioState.metroTimer);
+      __audioState.metroTimer = null;
+    }
+  },
+};
+
+/*
+ * pitch_detector.js — マイク→ピッチ検出（心臓部・iPhone実機で本物の楽器音を拾う）
+ *
+ * 何をする部品か: getUserMedia でマイク入力を取得し、AnalyserNode の時間領域データを
+ *   rAF ポーリングして MPM系自己相関（NSDF）で基本周波数を推定する。検出結果は
+ *   input_router.js が統一入力イベント {kind:'pitch', freq, midi, cents, clarity,
+ *   level, t} に包んで配信する（このファイル自身はイベント形式を組み立てるだけ）。
+ * 外部依存: getUserMedia / AnalyserNode（AudioContextは自分で作らず外から受け取る。
+ *   シングルトンは audio_synth.js の getCtx() が所有する）。
+ * 差し替えポイント: detectPitchFromBuffer 以下の純関数群はAudioContext・DOM一切
+ *   不要の「バッファを渡すと周波数が返る」関数として独立させてある。ユニットテストは
+ *   tests/test_pitch.js からこの関数を直接呼ぶ（ブラウザなしで検証可能）。
+ *
+ * 公開API: PitchDetector.create(opts) → { start():Promise<bool>, stop() }
+ *   opts: { ctx, fmin, fmax, levelMin, onPitch }
+ *   注意: getUserMediaは楽器判定のためAEC/NS/AGCを全てOFFにする（iOSのAECは
+ *   楽器の生音を潰してしまうため必須）。
+ */
+
+// ---------------------------------------------------------------------------
+// 純関数コア（AudioContext/DOM不要・ユニットテスト対象）
+// ---------------------------------------------------------------------------
+
+// NSDF (Normalized Square Difference Function) を lag=0..maxLag で計算する。
+// buf: Float32Array の時間領域サンプル。
+function computeNSDF(buf, maxLag) {
+  const n = buf.length;
+  const limitLag = Math.min(maxLag, n - 1);
+  const nsdf = new Float32Array(limitLag + 1);
+  for (let lag = 0; lag <= limitLag; lag++) {
+    let acf = 0;
+    let m = 0;
+    const limit = n - lag;
+    for (let i = 0; i < limit; i++) {
+      const a = buf[i];
+      const b = buf[i + lag];
+      acf += a * b;
+      m += a * a + b * b;
+    }
+    nsdf[lag] = m > 0 ? (2 * acf) / m : 0;
+  }
+  return nsdf;
+}
+
+// NSDF の「正の区間ごとの極大（ローブ）」を集め、MPMのkey-maximum選択則
+// （最大ピークのthreshold倍以上に達した最初＝最小lagのローブを採用）でlagを選ぶ。
+// 放物線補間でサブサンプル精度に補正する。
+// minLag: これより手前のローブは候補から除外する（NSDF値自体は書き換えない。
+// 書き換えるとminLag境界に人工的なゼロ交差ができて誤検出する）。
+// 戻り値: { lag, clarity } / 未検出時 { lag:-1, clarity:0 }
+function findNSDFPeak(nsdf, minLag, threshold) {
+  threshold = threshold == null ? 0.9 : threshold;
+  minLag = minLag || 0;
+  const n = nsdf.length;
+  const peaks = [];
+  let i = 1;
+  while (i < n - 1) {
+    if (nsdf[i - 1] <= 0 && nsdf[i] > 0) {
+      let localMaxIdx = i;
+      while (i < n - 1 && nsdf[i] > 0) {
+        if (nsdf[i] > nsdf[localMaxIdx]) localMaxIdx = i;
+        i++;
+      }
+      if (localMaxIdx >= minLag) peaks.push(localMaxIdx);
+    } else {
+      i++;
+    }
+  }
+  if (peaks.length === 0) return { lag: -1, clarity: 0 };
+  let maxVal = -Infinity;
+  for (let p = 0; p < peaks.length; p++) {
+    if (nsdf[peaks[p]] > maxVal) maxVal = nsdf[peaks[p]];
+  }
+  let chosen = peaks[0];
+  for (let q = 0; q < peaks.length; q++) {
+    if (nsdf[peaks[q]] >= maxVal * threshold) { chosen = peaks[q]; break; }
+  }
+  if (chosen <= 0 || chosen >= n - 1) return { lag: -1, clarity: 0 };
+  // 放物線補間（3点: chosen-1, chosen, chosen+1）でサブサンプル精度のlagとpeak値を求める
+  const y0 = nsdf[chosen - 1];
+  const y1 = nsdf[chosen];
+  const y2 = nsdf[chosen + 1];
+  const denom = y0 - 2 * y1 + y2;
+  const shift = denom !== 0 ? 0.5 * (y0 - y2) / denom : 0;
+  const refinedLag = chosen + shift;
+  const refinedVal = y1 - 0.25 * (y0 - y2) * shift;
+  return { lag: refinedLag, clarity: Math.min(1, Math.max(0, refinedVal)) };
+}
+
+// buf(時間領域サンプル) + sampleRate + fmin/fmax から基本周波数を推定する純関数。
+// fmin=35Hzが既定（E1=41.2Hzを確実に拾うための探索下限）。fmaxは楽器から渡される。
+// 戻り値: { freq, clarity } / 未検出時 { freq:0, clarity:0 }
+function detectPitchFromBuffer(buf, sampleRate, fmin, fmax) {
+  fmin = fmin || 35;
+  fmax = fmax || 1000;
+  const maxLag = Math.min(buf.length - 1, Math.ceil(sampleRate / fmin));
+  const minLag = Math.max(2, Math.floor(sampleRate / fmax));
+  if (maxLag <= minLag) return { freq: 0, clarity: 0 };
+  const nsdf = computeNSDF(buf, maxLag);
+  // fmaxより高い（=lagが短すぎる）ローブはminLag未満として候補から除外する
+  const peak = findNSDFPeak(nsdf, minLag, 0.9);
+  if (peak.lag <= 0) return { freq: 0, clarity: 0 };
+  return { freq: sampleRate / peak.lag, clarity: peak.clarity };
+}
+
+function computeRMS(buf) {
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / buf.length);
+}
+
+function freqToMidi(freq) {
+  return 69 + 12 * Math.log2(freq / 440);
+}
+
+// 実数midiを最寄りの整数midiとセント偏差に分解する。
+function midiCents(midiFloat) {
+  const midi = Math.round(midiFloat);
+  const cents = (midiFloat - midi) * 100;
+  return { midi, cents };
+}
+
+// ---------------------------------------------------------------------------
+// マイク入力ラッパー（AudioContext/DOM必須。ここから下はブラウザでのみ動く）
+// ---------------------------------------------------------------------------
+
+const PitchDetector = {
+  // opts: { ctx, fmin, fmax, levelMin, onPitch }
+  // ctx は外から渡される既存の AudioContext（ここでは新規生成しない）。
+  create(opts) {
+    opts = opts || {};
+    const ctx = opts.ctx || null;
+    const fmin = opts.fmin || 35;
+    const fmax = opts.fmax || 1000;
+    const levelMin = opts.levelMin != null ? opts.levelMin : 0.01;
+    const onPitch = typeof opts.onPitch === 'function' ? opts.onPitch : function () {};
+
+    const state = {
+      stream: null,
+      source: null,
+      analyser: null,
+      rafId: null,
+      timeBuf: null,
+      running: false,
+    };
+
+    function loop() {
+      if (!state.running || !state.analyser) return;
+      state.analyser.getFloatTimeDomainData(state.timeBuf);
+      const level = computeRMS(state.timeBuf);
+      let freq = 0;
+      let midi = null;
+      let cents = 0;
+      let clarity = 0;
+      // levelMin未満は無音として捨てる（ノイズゲート）。level自体は常に報告する
+      // （hud.jsのマイクレベルメーターが無音時も継続して針を振れるようにするため）。
+      if (level >= levelMin) {
+        const result = detectPitchFromBuffer(state.timeBuf, ctx.sampleRate, fmin, fmax);
+        if (result.freq > 0) {
+          freq = result.freq;
+          clarity = result.clarity;
+          const mc = midiCents(freqToMidi(freq));
+          midi = mc.midi;
+          cents = mc.cents;
+        }
+      }
+      onPitch({ kind: 'pitch', freq, midi, cents, clarity, level, t: performance.now() / 1000 });
+      state.rafId = requestAnimationFrame(loop);
+    }
+
+    return {
+      start() {
+        return new Promise((resolve) => {
+          try {
+            if (!ctx) { resolve(false); return; }
+            if (typeof window !== 'undefined' && window.isSecureContext === false) { resolve(false); return; }
+            if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+              resolve(false);
+              return;
+            }
+            navigator.mediaDevices.getUserMedia({
+              audio: {
+                // 楽器判定に3つのOFF必須: iOSのAECは楽器音を潰す
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+              },
+            }).then((stream) => {
+              try {
+                state.stream = stream;
+                state.source = ctx.createMediaStreamSource(stream);
+                state.analyser = ctx.createAnalyser();
+                state.analyser.fftSize = 4096;
+                state.timeBuf = new Float32Array(state.analyser.fftSize);
+                state.source.connect(state.analyser);
+                state.running = true;
+                state.rafId = requestAnimationFrame(loop);
+                resolve(true);
+              } catch (e) {
+                resolve(false);
+              }
+            }).catch(() => resolve(false));
+          } catch (e) {
+            resolve(false);
+          }
+        });
+      },
+      stop() {
+        state.running = false;
+        if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
+        if (state.source) { try { state.source.disconnect(); } catch (e) {} state.source = null; }
+        if (state.stream) {
+          state.stream.getTracks().forEach((tr) => tr.stop());
+          state.stream = null;
+        }
+        state.analyser = null;
+      },
+    };
+  },
+};
+
+/*
+ * input_router.js — mic/touch/keyboard を統一入力イベントに正規化する
+ *
+ * 何をする部品か: pitch_detector.js（マイク）・画面下のレーンボタン（タッチ）・
+ *   キーボード（開発検証用）の3系統の入力を、SPECの統一入力イベント形式
+ *   { kind:'pitch', freq, midi, cents, clarity, level, t } または
+ *   { kind:'lane', laneIndex, t } に正規化して onEvent(cb) 購読者へ配信する。
+ * 外部依存: pitch_detector.js の PitchDetector（結合順で本ファイルより前に読み込まれる
+ *   前提）、audio_synth.js の getCtx()（AudioContextは自分で作らない）。
+ * 差し替えポイント: attachTouch(el, lanes) はレーンボタンDOM自体をこの関数が
+ *   生成する設計（highway.js/hud.js が別途ボタンDOMを作る場合は二重生成に
+ *   注意。lanes配列の color/label をそのままボタンの見た目に使う）。
+ *
+ * 公開API: InputRouter.create(opts) →
+ *   { onEvent(cb), startMic():Promise<bool>, stopMic(), attachTouch(el, lanes),
+ *     attachKeyboard(lanes), micActive }
+ *   opts: { fmin, fmax, levelMin } （instrument.mic をそのまま渡す想定）
+ */
+
+// レーン数ぶんの割当。上レーンから 1..9 → a s d f g h j k の順（開発検証用）
+const RK_KEY_SEQUENCE = ['1','2','3','4','5','6','7','8','9','a','s','d','f','g','h','j','k'];
+
+function rkLaneIndexOfElement(target, buttons) {
+  for (let i = 0; i < buttons.length; i++) {
+    if (buttons[i] === target || (buttons[i].contains && buttons[i].contains(target))) return i;
+  }
+  return -1;
+}
+
+// 画面下のレーンボタンをel内に生成し、タッチスタート即発火・マルチタッチ対応で
+// laneイベントを発火する。マウス/ペン（開発機での確認用）はpointerdownで拾い、
+// touchpointerは touchstart側で処理済みなので二重発火しないようスキップする。
+function rkAttachTouch(el, lanes, emit) {
+  el.innerHTML = '';
+  const buttons = [];
+  for (let i = 0; i < lanes.length; i++) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.laneIndex = String(i);
+    btn.style.background = lanes[i].color || '#888';
+    btn.style.touchAction = 'none';
+    btn.textContent = lanes[i].label || '';
+    el.appendChild(btn);
+    buttons.push(btn);
+  }
+  function fireLane(idx) {
+    emit({ kind: 'lane', laneIndex: idx, t: performance.now() / 1000 });
+  }
+  el.addEventListener('touchstart', (ev) => {
+    ev.preventDefault();
+    for (let i = 0; i < ev.changedTouches.length; i++) {
+      const touch = ev.changedTouches[i];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      const idx = rkLaneIndexOfElement(target, buttons);
+      if (idx >= 0) fireLane(idx);
+    }
+  }, { passive: false });
+  el.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType === 'touch') return; // touchstartで処理済み・二重発火防止
+    const idx = rkLaneIndexOfElement(ev.target, buttons);
+    if (idx >= 0) fireLane(idx);
+  });
+  return buttons;
+}
+
+// キーボード割当（開発検証用）。window.keydownを監視しrepeatは無視する。
+// 戻り値: detach関数（stopMic等とは独立にリスナーを外したい場合用）。
+function rkAttachKeyboard(lanes, emit) {
+  const map = {};
+  for (let i = 0; i < lanes.length && i < RK_KEY_SEQUENCE.length; i++) {
+    map[RK_KEY_SEQUENCE[i]] = i;
+  }
+  function onKeyDown(ev) {
+    if (ev.repeat) return;
+    const key = ev.key ? ev.key.toLowerCase() : '';
+    if (Object.prototype.hasOwnProperty.call(map, key)) {
+      emit({ kind: 'lane', laneIndex: map[key], t: performance.now() / 1000 });
+    }
+  }
+  window.addEventListener('keydown', onKeyDown);
+  return function detach() { window.removeEventListener('keydown', onKeyDown); };
+}
+
+const InputRouter = {
+  // opts: { fmin, fmax, levelMin } — instrument.mic をそのまま渡す想定
+  create(opts) {
+    opts = opts || {};
+    const listeners = [];
+    const state = { micActive: false, detector: null };
+
+    function emit(evt) {
+      for (let i = 0; i < listeners.length; i++) listeners[i](evt);
+    }
+
+    return {
+      onEvent(cb) {
+        if (typeof cb === 'function') listeners.push(cb);
+      },
+      // pitch_detector.js を包んでPromise<bool>を返す。AudioContextは
+      // audio_synth.js の getCtx()（結合順で本ファイルより前に定義済み）を使う。
+      startMic() {
+        const ctx = typeof getCtx === 'function' ? getCtx() : null;
+        state.detector = PitchDetector.create({
+          ctx,
+          fmin: opts.fmin,
+          fmax: opts.fmax,
+          levelMin: opts.levelMin,
+          onPitch(evt) { emit(evt); },
+        });
+        return state.detector.start().then((ok) => {
+          state.micActive = ok;
+          return ok;
+        });
+      },
+      stopMic() {
+        if (state.detector) state.detector.stop();
+        state.micActive = false;
+      },
+      attachTouch(el, lanes) {
+        return rkAttachTouch(el, lanes, emit);
+      },
+      attachKeyboard(lanes) {
+        return rkAttachKeyboard(lanes, emit);
+      },
+      get micActive() { return state.micActive; },
+    };
+  },
+};
+
+/*
+ * highway.js — 落下ノートの縦スクロール描画（canvas 2D）
+ *
+ * 何をする部品か: 判定線に向かってノートが降下していく描画、レーン配置（4/6/8可変）、
+ *   HIT演出（リング+ポップ）、lane mode時のタッチ入力ボタン列を描く。楽器の中身
+ *   （レーン色・音域・noteToLane写像）はINSTRUMENT_DEFから、曲の中身（notes）は
+ *   judge.js の RkNoteRunner から、表示に必要な値だけを読み取る。
+ *   楽器名・曲名・キャラ固有名は一切書かない。
+ * 外部依存: Canvas 2D Context。RkNoteRunner の形（judge.js）を読む。
+ *
+ * 公開API: roundRect(共有ヘルパー), rkNoteName(共有ヘルパー), Highway クラス。
+ *   new Highway(canvasEl, instrument, naming)
+ *   .fit() / .draw(runners, songTimeSec, theme) / .updateFx(dt)
+ *   .spawnHitFx(laneIndex, rank) / .spawnMissFx(laneIndex) / .spawnCheerFx(text)
+ *   .spawnComboPulse() / .laneButtons
+ */
+
+// 丸角矩形パス（hud.js からも共有で使う）
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+const RK_NOTE_NAMES_ABC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const RK_NOTE_NAMES_DOREMI = ['ド','ド#','レ','レ#','ミ','ファ','ファ#','ソ','ソ#','ラ','ラ#','シ'];
+
+// naming: 'doremi'|'abc'（hud.js のチューナー表示からも共有で使う）
+function rkNoteName(midi, naming){
+  const table = naming === 'abc' ? RK_NOTE_NAMES_ABC : RK_NOTE_NAMES_DOREMI;
+  const oct = Math.floor(midi / 12) - 1;
+  return table[((midi % 12) + 12) % 12] + oct;
+}
+
+const RK_LOOKAHEAD_SEC = 4;      // 先読み表示4秒ぶん
+const RK_JUDGE_LINE_RATIO = 0.82; // 判定線は下から18% = 上から82%
+
+class Highway {
+  constructor(canvas, instrument, naming){
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.instrument = instrument;
+    this.naming = naming || 'doremi';
+    this.hitFx = []; // {x, y, timer, label}
+    this.comboPulse = 0; // コンボ5刻み到達時の画面パルス残り秒（0で無効）
+    this.laneButtons = [];
+    this.fit();
+  }
+  setInstrument(instrument){
+    this.instrument = instrument;
+    this._layoutLanes();
+  }
+  setNaming(naming){ this.naming = naming; }
+  fit(){
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    const rect = this.canvas.getBoundingClientRect();
+    this.w = Math.max(1, Math.round(rect.width || this.canvas.width || 1));
+    this.h = Math.max(1, Math.round(rect.height || this.canvas.height || 1));
+    this.canvas.width = Math.round(this.w * dpr);
+    this.canvas.height = Math.round(this.h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this._layoutLanes();
+  }
+  _layoutLanes(){
+    if (!this.instrument) return;
+    const lanes = this.instrument.lanes;
+    const n = lanes.length;
+    const laneW = this.w / n;
+    this.laneX = lanes.map((l, i) => (i + 0.5) * laneW);
+    this.laneW = laneW;
+    this.judgeY = this.h * RK_JUDGE_LINE_RATIO;
+    const btnH = Math.min(64, Math.max(36, this.h - this.judgeY - 8));
+    this.laneButtons = lanes.map((l, i) => ({
+      laneIndex: i, x: i * laneW, y: this.judgeY + 6, w: laneW, h: btnH,
+    }));
+  }
+  // songTimeSec時点でtargetSecのノートがどのy座標にいるか（判定線=judgeYに来る時刻がtargetSec）
+  _yFor(targetSec, songTimeSec){
+    const dt = targetSec - songTimeSec;
+    return this.judgeY - (dt / RK_LOOKAHEAD_SEC) * this.judgeY;
+  }
+  spawnHitFx(laneIndex, rank){
+    const label = rank === 'perfect' ? 'パーフェクト！' : (rank === 'good' ? 'グッド！' : null);
+    if (!label || this.laneX == null) return;
+    this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, label, cheer: false });
+  }
+  // マスコット応援テキストのポップ（GAME_DEF.theme.mascot.cheer由来の文言を受け取って表示するだけ。
+  // 文言の中身・選び方は一切知らない＝呼び出し側(game_core.js)が決める）。リング演出は出さず
+  // テキストだけを画面中央上寄りに大きくポップさせる。既存のhitFx更新/描画パイプラインに相乗りする。
+  spawnCheerFx(text){
+    if (!text) return;
+    this.hitFx.push({ x: this.w / 2, y: this.judgeY * 0.4, timer: 0.7, ring: 0, label: text, cheer: true });
+  }
+  // MISS演出（練習寄り: 「おしい！」の柔らかいポップ。リングは出さず責める見た目にしない）
+  spawnMissFx(laneIndex){
+    if (this.laneX == null || this.laneX[laneIndex] == null) return;
+    this.hitFx.push({ x: this.laneX[laneIndex], y: this.judgeY, timer: 0.5, ring: 0, label: 'おしい！', cheer: false, miss: true });
+  }
+  // コンボ5刻み到達時に画面を一瞬明るくパルスさせる（game_core._maybeCheerから呼ばれる）
+  spawnComboPulse(){
+    this.comboPulse = 0.3;
+  }
+  updateFx(dt){
+    for (let i = this.hitFx.length - 1; i >= 0; i--){
+      const fx = this.hitFx[i];
+      fx.timer -= dt;
+      fx.ring += dt * 3;
+      if (fx.timer <= 0) this.hitFx.splice(i, 1);
+    }
+    if (this.comboPulse > 0) this.comboPulse = Math.max(0, this.comboPulse - dt);
+  }
+  // runners: JudgeEngine.runners（judge.js の RkNoteRunner 配列）
+  // lane modeのタッチボタン列は input_router.js が実DOM要素として生成し、
+  // game_core.js が座標をCSSで重ねて配置する（canvas内には描画しない設計。
+  // laneButtons はそのDOM配置計算のためにレイアウト情報として公開する）。
+  draw(runners, songTimeSec, theme){
+    const ctx = this.ctx;
+    theme = theme || {};
+    ctx.clearRect(0, 0, this.w, this.h);
+
+    // 背景（theme.bgの縦グラデ。省略時は単色フォールバック）
+    const bg = theme.bg || ['#1a1038', '#2a1a58'];
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, this.h);
+    bgGrad.addColorStop(0, bg[0] || '#1a1038');
+    bgGrad.addColorStop(1, bg[1] || bg[0] || '#2a1038');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, this.w, this.h);
+
+    // レーンごとの薄色フィル（レーン色を淡く敷いて視覚リンクを作る）
+    for (let i = 0; i < this.instrument.lanes.length; i++){
+      const lane = this.instrument.lanes[i];
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      ctx.fillStyle = lane.color || '#ffffff';
+      ctx.fillRect(i * this.laneW, 0, this.laneW, this.judgeY);
+      ctx.restore();
+    }
+
+    // レーン仕切り線
+    ctx.strokeStyle = theme.laneLine || 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < this.instrument.lanes.length; i++){
+      const x = i * this.laneW;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, this.judgeY); ctx.stroke();
+    }
+    // 判定線（グロー: shadowBlurは高コストなので、低alphaの太線を下敷きにして重ね描きする）
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+    ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.w, this.judgeY); ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, this.judgeY); ctx.lineTo(this.w, this.judgeY); ctx.stroke();
+
+    // ノート
+    for (const r of runners){
+      if (r.state === 'missed') continue;
+      const y = this._yFor(r.targetSec, songTimeSec);
+      if (y < -40 || y > this.h + 40) continue;
+      const pos = this.instrument.noteToLane(r.note.midi);
+      const lane = this.instrument.lanes[pos.laneIndex];
+      const x = this.laneX[pos.laneIndex];
+      const badgeR = Math.min(this.laneW * 0.36, 26);
+      // 判定線に近づく(±1秒)ノートは薄い後光を足して光らせる
+      if (r.state === 'pending' && Math.abs(r.targetSec - songTimeSec) < 1){
+        ctx.save();
+        ctx.globalAlpha = 0.35 * (1 - Math.abs(r.targetSec - songTimeSec));
+        ctx.beginPath();
+        ctx.arc(x, y, badgeR + 8, 0, Math.PI * 2);
+        ctx.fillStyle = lane.color || '#ffffff';
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.globalAlpha = r.state === 'hit' ? 0.35 : 1;
+      ctx.beginPath();
+      ctx.arc(x, y, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = lane.color || '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#1a1030';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
+      const inner = pos.fret != null ? String(pos.fret) : rkNoteName(r.note.midi, this.naming);
+      ctx.fillText(inner, x, y + 5);
+      ctx.font = '10px "Hiragino Maru Gothic ProN", sans-serif';
+      ctx.fillStyle = theme.text || '#fff7e8';
+      ctx.fillText(rkNoteName(r.note.midi, this.naming), x, y + badgeR + 13);
+      ctx.restore();
+    }
+
+    // HIT/MISS演出（canvas内。DOMでなくパーティクル的リング+ポップ）。
+    // cheer=true（マスコット応援）とmiss=true（練習寄りの「おしい！」）はリングを出さず
+    // テキストだけをポップさせる（missを責める見た目にしない）。
+    for (const fx of this.hitFx){
+      const alpha = Math.max(0, fx.timer / (fx.cheer ? 0.7 : 0.5));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      if (!fx.cheer && !fx.miss){
+        ctx.strokeStyle = theme.accent || '#ff8fb3';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(fx.x, fx.y, 20 + fx.ring * 18, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = fx.miss ? (theme.text || '#fff7e8') : (theme.accent || '#ff8fb3');
+      ctx.textAlign = 'center';
+      ctx.font = fx.cheer
+        ? 'bold 22px "Hiragino Maru Gothic ProN", sans-serif'
+        : 'bold 16px "Hiragino Maru Gothic ProN", sans-serif';
+      ctx.fillText(fx.label, fx.x, fx.y - (fx.cheer ? 0 : 30));
+      ctx.restore();
+    }
+
+    // コンボ5刻みパルス（画面を一瞬明るく。fadeはupdateFxのcomboPulse減衰に追従）
+    if (this.comboPulse > 0){
+      ctx.save();
+      ctx.globalAlpha = (this.comboPulse / 0.3) * 0.22;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, this.w, this.h);
+      ctx.restore();
+    }
+
+    // lane mode時の実タッチボタンはDOM要素（input_router.jsが生成）が担当するため、
+    // canvas内には描画しない。laneButtons のレイアウト値はそのDOM位置合わせに使われる。
+  }
+}
+
+/*
+ * fingerboard.js — 押さえ位置ガイド描画（弦楽器フレットボード / 鍵盤）
+ *
+ * 何をする部品か: pitchモード中、判定線の下の帯に「次にどこを押さえるか」を
+ *   INSTRUMENT_DEF.display の type（fretboard|keyboard）に応じて描画する。
+ *   レーン色・音域・音名はinstrument/namingから受け取るだけで、楽器名そのものは
+ *   一切書かない（fretboard/keyboardという表示型の分岐のみ知っている）。
+ * 外部依存: Canvas 2D Context。roundRect / rkNoteName（highway.js が提供・
+ *   function宣言の巻き上げにより結合順序に関わらず参照可能）。
+ *
+ * 公開API: new FingerBoard(instrument, naming)
+ *   .setInstrument(instrument) / .setNaming(naming)
+ *   .draw(ctx, x, y, w, h, current, next, theme)
+ *   current/next: {laneIndex, fret, midi} | null（呼び出し側がnoteToLaneで解決して渡す）
+ *   instrument.display が無い/未知typeなら何も描かない（防御。並行して
+ *   instruments/*.js に display フィールドが追加される途上でもクラッシュしない）。
+ */
+class FingerBoard {
+  constructor(instrument, naming){
+    this.instrument = instrument;
+    this.naming = naming || 'doremi';
+    // 呼ばれるたびに1増える擬似時間カウンタ。current dot の脈動に使う
+    // （Date.now/Math.random不使用・呼び出し回数ベースの決定論パルス）。
+    this._frame = 0;
+  }
+  setInstrument(instrument){ this.instrument = instrument; }
+  setNaming(naming){ this.naming = naming; }
+
+  draw(ctx, x, y, w, h, current, next, theme){
+    const instrument = this.instrument;
+    const display = instrument && instrument.display;
+    if (!display || !display.type) return;
+    this._frame++;
+    theme = theme || {};
+    if (display.type === 'fretboard') this._drawFretboard(ctx, x, y, w, h, current, next, theme, display);
+    else if (display.type === 'keyboard') this._drawKeyboard(ctx, x, y, w, h, current, next, theme);
+  }
+
+  _drawFretboard(ctx, x, y, w, h, current, next, theme, display){
+    const lanes = this.instrument.lanes;
+    const n = lanes.length;
+    const fretCount = Math.max(1, display.fretCount || 7);
+    const labelH = 14;
+    const openW = Math.min(38, w * 0.14);
+    const neckX = x + openW;
+    const neckW = Math.max(1, w - openW);
+    const staffY = y + labelH;
+    const staffH = Math.max(1, h - labelH);
+    const stringY = lanes.map((l, i) => staffY + (i + 0.5) * (staffH / n));
+
+    ctx.save();
+    // ネック地の帯
+    roundRect(ctx, neckX, staffY, neckW, staffH, 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fill();
+
+    // 弦（highwayレーンと同順・同色 = 視覚リンク）
+    for (let i = 0; i < n; i++){
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = lanes[i].color || 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(neckX, stringY[i]);
+      ctx.lineTo(neckX + neckW, stringY[i]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // フレット線（0=ナット太線）+ 番号
+    for (let f = 0; f <= fretCount; f++){
+      const fx = neckX + (f / fretCount) * neckW;
+      ctx.strokeStyle = f === 0 ? (theme.text || '#fff7e8') : 'rgba(255,255,255,0.28)';
+      ctx.lineWidth = f === 0 ? 4 : 1;
+      ctx.beginPath();
+      ctx.moveTo(fx, staffY);
+      ctx.lineTo(fx, staffY + staffH);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(230,216,255,0.65)';
+      ctx.font = '10px "Hiragino Maru Gothic ProN", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(f), fx, y + labelH - 3);
+    }
+
+    // fret→x座標。fret<=0(開放弦)はナット左の専用ゾーン中央、fret>=1はフレット間セルの中点
+    const cellX = (fret) => {
+      const f = fret == null ? 0 : fret;
+      if (f <= 0) return x + openW / 2;
+      const clamped = Math.max(1, Math.min(fretCount, f));
+      return neckX + ((clamped - 0.5) / fretCount) * neckW;
+    };
+
+    // 脈動量（現在ノート用）。Math.sinは_frame(呼び出し回数)にのみ依存し決定論的
+    const pulse = 2.5 + Math.sin(this._frame * 0.18) * 2.5;
+
+    if (next && next.laneIndex != null && lanes[next.laneIndex]){
+      const nx = cellX(next.fret);
+      const ny = stringY[next.laneIndex];
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = theme.accent || '#ff8fb3';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(nx, ny, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (current && current.laneIndex != null && lanes[current.laneIndex]){
+      const cx = cellX(current.fret);
+      const cy = stringY[current.laneIndex];
+      const lane = lanes[current.laneIndex];
+      const isOpen = (current.fret == null ? 0 : current.fret) <= 0;
+      ctx.save();
+      if (isOpen){
+        // かいほうげん: ナット左のリング表示（塗りつぶさず輪郭のみ）
+        ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 11 + pulse * 0.4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = theme.text || '#fff7e8';
+        ctx.font = 'bold 9px "Hiragino Maru Gothic ProN", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('かいほうげん', cx, cy + 22);
+      } else {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 15 + pulse, 0, Math.PI * 2);
+        ctx.fillStyle = lane.color || theme.accent || '#ff8fb3';
+        ctx.fill();
+        ctx.strokeStyle = theme.judgeLine || '#ffd34d';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#1a1030';
+        ctx.font = 'bold 14px "Hiragino Maru Gothic ProN", sans-serif';
+        ctx.fillText(String(current.fret), cx, cy + 5);
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  _drawKeyboard(ctx, x, y, w, h, current, next, theme){
+    const lanes = this.instrument.lanes;
+    const n = lanes.length;
+    const keyW = w / n;
+    ctx.save();
+    for (let i = 0; i < n; i++){
+      const kx = x + i * keyW;
+      const isCurrent = current && current.laneIndex === i;
+      const isNext = !isCurrent && next && next.laneIndex === i;
+      roundRect(ctx, kx + 2, y, keyW - 4, h, 8);
+      ctx.fillStyle = isCurrent ? (lanes[i].color || theme.accent || '#ff8fb3') : 'rgba(255,255,255,0.08)';
+      ctx.fill();
+      ctx.lineWidth = isNext ? 2 : 1.5;
+      ctx.strokeStyle = isNext ? (theme.accent || '#ff8fb3') : 'rgba(255,255,255,0.25)';
+      ctx.stroke();
+      if (isCurrent && current.midi != null){
+        ctx.fillStyle = '#1a1030';
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 14px "Hiragino Maru Gothic ProN", sans-serif';
+        ctx.fillText(rkNoteName(current.midi, this.naming), kx + keyW / 2, y + h / 2 + 5);
+      }
+    }
+    ctx.restore();
+  }
+}
+
+/*
+ * judge.js — ノート判定エンジン（タイミング×音程／レーン）
+ *
+ * 何をする部品か: CHART.notes を「これから判定すべきノートの列」として受け取り、
+ *   input_router.js から渡される pitch/lane イベントをフィードすることでヒット判定を
+ *   行う（PERFECT/GOOD窓・pitch一致条件・れんしゅう(wait)モードの停止挙動・スコア式）。
+ *   曲名・楽器名・UIの中身は一切知らない（表示はhighway.js/hud.js側の責務。
+ *   noteToLane等の楽器固有の写像だけINSTRUMENT_DEFから読む）。
+ * 外部依存: なし（純粋な状態機械）。呼び出し側(game_core.js)が songTimeSec と
+ *   input_routerからのイベントを毎フレーム渡す。
+ *
+ * 公開API: JudgeEngine（1曲分のライフサイクルを管理）。
+ *   new JudgeEngine(notes, bpm, instrument, judgeMode, isWaitMode, offsetSec)
+ *   .feedPitch(ev, songTimeSec) / .feedLane(ev, songTimeSec) / .update(songTimeSec)
+ *   .isDone / .combo / .maxCombo / .score / .stats{perfect,good,miss} / .accuracy()
+ */
+
+const RK_PERFECT_WINDOW = 0.18;
+const RK_GOOD_WINDOW = 0.35;
+const RK_PITCH_HOLD_SEC = 0.06; // 連続60ms保持でHIT確定
+
+// pitchTolerance: 'exact'=同一midi一致 / 'pitchClass'=オクターブ違い許容（既定）
+function rkPitchMatches(targetMidi, gotMidi, tolerance){
+  if (tolerance === 'pitchClass') return (((targetMidi - gotMidi) % 12) + 12) % 12 === 0;
+  return targetMidi === gotMidi;
+}
+
+function rkJudgeRankFromDelta(deltaAbsSec){
+  if (deltaAbsSec <= RK_PERFECT_WINDOW) return 'perfect';
+  if (deltaAbsSec <= RK_GOOD_WINDOW) return 'good';
+  return null;
+}
+
+// コンボ倍率: 1 + min(combo,20)*0.05（SPEC「スコア: PERFECT100/GOOD50×combo倍率」）
+function rkComboMultiplier(combo){ return 1 + Math.min(combo, 20) * 0.05; }
+
+function rkNoteScore(rank, comboBeforeThisHit){
+  const base = rank === 'perfect' ? 100 : (rank === 'good' ? 50 : 0);
+  return Math.round(base * rkComboMultiplier(comboBeforeThisHit));
+}
+
+// リザルトランク: PERFECT率 90%+=S / 70%+=A / 50%+=B / それ以外=C
+function rkResultRank(stats){
+  const total = stats.perfect + stats.good + stats.miss;
+  if (total === 0) return 'C';
+  const perfectRate = stats.perfect / total;
+  if (perfectRate >= 0.9) return 'S';
+  if (perfectRate >= 0.7) return 'A';
+  if (perfectRate >= 0.5) return 'B';
+  return 'C';
+}
+
+// 1ノート分の判定状態。JudgeEngineが内部で使う（外部から直接newしない）。
+class RkNoteRunner {
+  constructor(note, targetSec){
+    this.note = note;             // {beat, midi, len}（CHART.notes の1要素）
+    this.targetSec = targetSec;   // 曲頭からの絶対秒（beat→秒変換済み）
+    this.state = 'pending';       // pending | hit | missed
+    this.rank = null;             // 'perfect' | 'good' | null
+    this._holdStart = null;       // pitch連続保持の開始時刻（イベントのtフィールド基準）
+  }
+}
+
+class JudgeEngine {
+  // notes: CHART.notes（beat昇順前提）, bpm: CHART.bpm, instrument: INSTRUMENT_DEF
+  // judgeMode: 'pitch'|'lane', isWaitMode: true=れんしゅう（時間経過でmissにせず待つ）
+  // offsetSec: 設定スライダー値。イベント側の時刻に加算して補正する（既定-0.12）
+  constructor(notes, bpm, instrument, judgeMode, isWaitMode, offsetSec){
+    this.instrument = instrument;
+    this.judgeMode = judgeMode;
+    this.isWaitMode = !!isWaitMode;
+    this.offsetSec = offsetSec || 0;
+    this.secPerBeat = 60 / bpm;
+    this.runners = notes.map(n => new RkNoteRunner(n, n.beat * this.secPerBeat));
+    // 次に判定対象となりうる runner の先頭インデックス。全ノードpending消化と共に前進する
+    this.cursor = 0;
+    this.stats = { perfect: 0, good: 0, miss: 0 };
+    this.combo = 0;
+    this.maxCombo = 0;
+    this.score = 0;
+    this.lastHit = null; // 直近のヒット結果 {runner, rank}（highway.jsの演出トリガー用）
+  }
+  get isDone(){ return this.cursor >= this.runners.length; }
+  get totalNotes(){ return this.runners.length; }
+  _activeRunner(){
+    // wait modeでは常にcursor位置の1ノートだけが判定対象
+    return this.cursor < this.runners.length ? this.runners[this.cursor] : null;
+  }
+  // 通常モード: タイミング窓(±GOOD)に入っているpending runnerを列挙する。
+  // notesはbeat昇順なので、窓より未来のノートに達したら打ち切ってよい。
+  _windowedRunners(songTimeSec){
+    const out = [];
+    for (let i = this.cursor; i < this.runners.length; i++){
+      const r = this.runners[i];
+      if (r.state !== 'pending') continue;
+      const delta = songTimeSec - r.targetSec;
+      if (delta > RK_GOOD_WINDOW) continue;
+      if (delta < -RK_GOOD_WINDOW) break;
+      out.push(r);
+    }
+    return out;
+  }
+  _settleHit(runner, rank){
+    runner.state = 'hit';
+    runner.rank = rank;
+    this.score += rkNoteScore(rank, this.combo);
+    this.combo++;
+    if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+    this.stats[rank]++;
+    this.lastHit = { runner, rank };
+    this._advanceCursor();
+    return this.lastHit;
+  }
+  _settleMiss(runner){
+    runner.state = 'missed';
+    this.combo = 0;
+    this.stats.miss++;
+    this._advanceCursor();
+  }
+  _advanceCursor(){
+    while (this.cursor < this.runners.length && this.runners[this.cursor].state !== 'pending') this.cursor++;
+  }
+  // pitchイベント: {kind:'pitch', freq, midi, cents, clarity, level, t}
+  // songTimeSec: このイベントを処理する時点の曲内経過秒（AudioContext.currentTime基準）
+  // 戻り値: ヒットした場合 {runner, rank}、なければ null
+  feedPitch(ev, songTimeSec){
+    if (this.judgeMode !== 'pitch') return null;
+    const mic = this.instrument.mic || {};
+    const clarityOk = ev.clarity != null && ev.clarity >= (mic.clarityMin != null ? mic.clarityMin : 0.83);
+    const levelOk = ev.level == null || ev.level >= (mic.levelMin != null ? mic.levelMin : 0);
+    const t = songTimeSec + this.offsetSec;
+    const targets = this.isWaitMode
+      ? (this._activeRunner() ? [this._activeRunner()] : [])
+      : this._windowedRunners(t);
+    for (const runner of targets){
+      const matches = clarityOk && levelOk && rkPitchMatches(runner.note.midi, ev.midi, this.instrument.pitchTolerance);
+      if (!matches){ runner._holdStart = null; continue; }
+      if (runner._holdStart == null) runner._holdStart = ev.t;
+      const held = ev.t - runner._holdStart;
+      if (held < RK_PITCH_HOLD_SEC) continue;
+      if (this.isWaitMode) return this._settleHit(runner, 'perfect');
+      const rank = rkJudgeRankFromDelta(Math.abs(t - runner.targetSec));
+      if (rank) return this._settleHit(runner, rank);
+    }
+    return null;
+  }
+  // laneイベント: {kind:'lane', laneIndex, t}
+  feedLane(ev, songTimeSec){
+    if (this.judgeMode !== 'lane') return null;
+    const t = songTimeSec + this.offsetSec;
+    const targets = this.isWaitMode
+      ? (this._activeRunner() ? [this._activeRunner()] : [])
+      : this._windowedRunners(t);
+    for (const runner of targets){
+      const pos = this.instrument.noteToLane(runner.note.midi);
+      if (pos.laneIndex !== ev.laneIndex) continue;
+      if (this.isWaitMode) return this._settleHit(runner, 'perfect');
+      const rank = rkJudgeRankFromDelta(Math.abs(t - runner.targetSec));
+      if (rank) return this._settleHit(runner, rank);
+    }
+    return null;
+  }
+  // 毎フレーム呼ぶ。GOOD窓を過ぎたpendingノートをmiss化する。
+  // wait modeでは何もしない（SPEC「れんしゅうモードはMISSなし・何秒かかってもOK」）。
+  // 戻り値: このフレームでmiss確定したrunnerの配列
+  update(songTimeSec){
+    if (this.isWaitMode) return [];
+    const t = songTimeSec + this.offsetSec;
+    const missed = [];
+    for (let i = this.cursor; i < this.runners.length; i++){
+      const r = this.runners[i];
+      if (r.state !== 'pending') continue;
+      if (t - r.targetSec > RK_GOOD_WINDOW){
+        this._settleMiss(r);
+        missed.push(r);
+      } else break;
+    }
+    return missed;
+  }
+  accuracy(){
+    const total = this.stats.perfect + this.stats.good + this.stats.miss;
+    return total ? this.stats.perfect / total : 0;
+  }
+}
+
+/*
+ * hud.js — スコア/コンボ/進行バー/マイクレベルメーター/チューナー表示
+ *
+ * 何をする部品か: play中のcanvasオーバーレイHUDと、チューナーモード単独画面の描画、
+ *   リザルトパネルの見た目（ボタンはDOM側・game_core.jsが管理）を提供する関数群。
+ *   曲名・楽器名などの固有情報は一切持たない（値はすべて呼び出し側から渡す）。
+ * 外部依存: Canvas 2D Context。roundRect / rkNoteName（highway.js が提供・結合順序で先）。
+ *   clamp（game_core.js が提供。function宣言の巻き上げにより結合後は参照可能）。
+ *
+ * 公開API:
+ *   drawRkScoreHud(ctx,x,y,score,combo)
+ *   drawRkProgressBar(ctx,x,y,w,songTimeSec,totalSec)
+ *   drawRkMicMeter(ctx,x,y,w,h,level,levelMin)
+ *   drawRkTuner(ctx,canvasW,canvasH,detected,naming)
+ *   drawRkResultPanel(ctx,canvasW,canvasH,rank,stats,isWaitMode) -> {panelX,panelY,panelW,panelH}
+ *   drawRkConfetti(ctx,canvasW,canvasH,frame) — リザルト表示中だけ呼ぶ決定論パーティクル
+ *     （frame=呼び出し側の整数カウンタ。Math.random/Date.now不使用）
+ */
+
+function drawRkScoreHud(ctx, x, y, score, combo){
+  ctx.save();
+  roundRect(ctx, x, y, 140, 56, 12);
+  ctx.fillStyle = 'rgba(255,250,252,0.55)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#3a2a5a';
+  ctx.font = 'bold 16px "Hiragino Maru Gothic ProN", sans-serif';
+  ctx.fillText('SCORE ' + score, x + 8, y + 24);
+  if (combo > 0){
+    ctx.fillStyle = '#ff5f97';
+    ctx.font = 'bold 14px "Hiragino Maru Gothic ProN", sans-serif';
+    ctx.fillText('コンボ ' + combo, x + 8, y + 46);
+  }
+  ctx.restore();
+}
+
+function drawRkProgressBar(ctx, x, y, w, songTimeSec, totalSec){
+  const t = clamp(totalSec > 0 ? songTimeSec / totalSec : 0, 0, 1);
+  ctx.save();
+  roundRect(ctx, x, y, w, 6, 3);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fill();
+  if (t > 0){
+    roundRect(ctx, x, y, Math.max(w * t, 6), 6, 3);
+    ctx.fillStyle = '#ffd34d';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// level: おおよそ0-0.3程度のRMSレベル値
+function drawRkMicMeter(ctx, x, y, w, h, level, levelMin){
+  ctx.save();
+  roundRect(ctx, x, y, w, h, h / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fill();
+  const t = clamp((level || 0) / 0.3, 0, 1);
+  if (t > 0){
+    roundRect(ctx, x, y, Math.max(w * t, h), h, h / 2);
+    ctx.fillStyle = (level || 0) >= (levelMin || 0) ? '#8fe0a0' : '#ffb0b0';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// detected: null（未検出）または {midi, cents}
+function drawRkTuner(ctx, canvasW, canvasH, detected, naming){
+  ctx.save();
+  ctx.textAlign = 'center';
+  if (!detected){
+    ctx.fillStyle = '#fff7e8';
+    ctx.font = 'bold 20px "Hiragino Maru Gothic ProN", sans-serif';
+    ctx.fillText('おとを だしてね', canvasW / 2, canvasH / 2);
+    ctx.restore();
+    return;
+  }
+  const name = rkNoteName(detected.midi, naming);
+  ctx.fillStyle = '#fff7e8';
+  ctx.font = 'bold 64px "Hiragino Maru Gothic ProN", sans-serif';
+  ctx.fillText(name, canvasW / 2, canvasH / 2 - 20);
+
+  const cents = clamp(detected.cents || 0, -50, 50);
+  const meterW = Math.min(280, canvasW - 60);
+  const meterX = canvasW / 2 - meterW / 2;
+  const meterY = canvasH / 2 + 20;
+  roundRect(ctx, meterX, meterY, meterW, 14, 7);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // 中央=ぴったり
+  ctx.beginPath();
+  ctx.moveTo(canvasW / 2, meterY - 4);
+  ctx.lineTo(canvasW / 2, meterY + 18);
+  ctx.strokeStyle = '#ffd34d';
+  ctx.stroke();
+  const cx = meterX + meterW / 2 + (cents / 50) * (meterW / 2);
+  ctx.beginPath();
+  ctx.arc(cx, meterY + 7, 9, 0, Math.PI * 2);
+  ctx.fillStyle = Math.abs(cents) < 8 ? '#8fe0a0' : '#ff8fb3';
+  ctx.fill();
+
+  ctx.fillStyle = '#cbb8e0';
+  ctx.font = '13px "Hiragino Maru Gothic ProN", sans-serif';
+  ctx.fillText((cents >= 0 ? '+' : '') + Math.round(cents) + ' セント', canvasW / 2, meterY + 40);
+  ctx.restore();
+}
+
+// stats: {perfect, good, miss}。isWaitMode=trueなら「クリア！」表示（rankは無視）。
+// ボタンはDOM側（game_core.js）が担当するため、ここではパネルの矩形情報だけ返す。
+function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
+  const pw = Math.min(300, canvasW - 40);
+  const ph = 260;
+  const px = canvasW / 2 - pw / 2;
+  const py = canvasH / 2 - ph / 2 - 20;
+  ctx.save();
+  ctx.fillStyle = 'rgba(20,10,40,0.55)';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+  roundRect(ctx, px, py, pw, ph, 22);
+  ctx.fillStyle = 'rgba(40,20,70,0.96)';
+  ctx.fill();
+  ctx.strokeStyle = '#ffd34d';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd34d';
+  ctx.font = 'bold 40px "Hiragino Maru Gothic ProN", sans-serif';
+  ctx.fillText(isWaitMode ? 'クリア！' : rank, canvasW / 2, py + 70);
+
+  ctx.font = 'bold 18px "Hiragino Maru Gothic ProN", sans-serif';
+  ctx.fillStyle = '#fff7e8';
+  if (!isWaitMode){
+    ctx.fillText('パーフェクト ' + stats.perfect, canvasW / 2, py + 120);
+    ctx.fillText('グッド ' + stats.good, canvasW / 2, py + 150);
+    ctx.fillText('ミス ' + stats.miss, canvasW / 2, py + 180);
+    // 練習寄り: 常にポジティブな締めの一言（ゲームオーバー概念が無いことの明示）
+    ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
+    ctx.fillStyle = '#ffd34d';
+    ctx.fillText('さいごまで ひけたね！', canvasW / 2, py + 215);
+  } else {
+    ctx.fillText('できた！ ' + stats.perfect + 'こ', canvasW / 2, py + 140);
+  }
+  ctx.restore();
+  return { panelX: px, panelY: py, panelW: pw, panelH: ph };
+}
+
+// リザルト表示中だけ呼ぶ紙吹雪パーティクル。frameは呼び出し側が持つ整数カウンタ
+// （requestAnimationFrameごとに+1する想定）。乱数不使用: 粒ごとのindexをsin/cosの位相に
+// 使うことで、同じframe値なら常に同じ絵になる決定論描画にする。
+const RK_CONFETTI_COLORS = ['#ffd34d', '#ff8fb3', '#8fe0a0', '#66d9e8', '#ffa94d'];
+function drawRkConfetti(ctx, canvasW, canvasH, frame){
+  const n = 24;
+  ctx.save();
+  for (let i = 0; i < n; i++){
+    const xBase = ((Math.sin(i * 12.9898) * 0.5 + 0.5)) * canvasW;
+    const sway = Math.sin(frame * 0.05 + i) * 16;
+    const x = xBase + sway;
+    const y = ((frame * 2.4 + i * 41) % (canvasH + 60)) - 40;
+    const size = 5 + (i % 3) * 2;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(frame * 0.04 + i);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = RK_CONFETTI_COLORS[i % RK_CONFETTI_COLORS.length];
+    ctx.fillRect(-size / 2, -size / 2, size, size);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/*
+ * game_core.js — レジストリ + 状態機械（rhythmkit の心臓部）
+ *
+ * 何をする部品か: instruments/*.js・charts/*.js が自己登録するレジストリ
+ *   （registerInstrument/registerChart）と、GAME_DEF を受け取ってタイトル/設定/
+ *   マイク準備/プレイ/リザルト/チューナーの画面遷移を管理する RhythmGame を提供する。
+ *   audio_synth.js（音合成・iOS unlock）・pitch_detector.js（マイク検出。直接は
+ *   使わず input_router.js 経由）・input_router.js（統一入力）・highway.js（描画）・
+ *   judge.js（判定）・hud.js（HUD描画）を結線してゲームループを回す。
+ *   楽器名・曲名・キャラ固有名は一切書かない（GAME_DEF/INSTRUMENT_DEF/CHART から
+ *   受け取ったデータを表示するだけ）。
+ * 外部依存: DOM（template.html が用意する #rk-* 要素群）, Canvas 2D,
+ *   InputRouter.create(opts)（input_router.js。opts={fmin,fmax,levelMin}=instrument.mic）,
+ *   unlock()/getCtx()/playSfx()/metronome（audio_synth.js のグローバル関数・
+ *   存在すれば使う＝未実装でもクラッシュしない防御コーディング）,
+ *   Highway/FingerBoard/JudgeEngine（highway.js/fingerboard.js/judge.js・
+ *   結合順序で本ファイルより前。FingerBoardはpitchモード中のみ判定線下に
+ *   押さえ位置ガイドを描く。instrument.display未定義/未知typeなら自然に何も描かない）,
+ *   drawRkScoreHud等（hud.js・結合順序で本ファイルより前）。
+ *   lane modeのタッチボタンは input_router.js の attachTouch(el, lanes) が
+ *   #rk-lane-buttons 内に実DOMボタンを生成する。本ファイルは highway.js の
+ *   レイアウト計算値(laneButtons)を使ってそのDOM位置をCSSで重ねるだけ。
+ *
+ * レジストリはファイル先頭で定義する（結合順で instruments/*.js・charts/*.js が
+ * 本ファイルより後に来るため、それらの末尾の registerInstrument()/registerChart() 呼び出し
+ * が実行される時点で __RK_INSTRUMENTS/__RK_CHARTS が既に存在している必要がある）。
+ */
+var __RK_INSTRUMENTS = {};
+var __RK_CHARTS = {};
+function registerInstrument(def){ __RK_INSTRUMENTS[def.id] = def; }
+function registerChart(def){ __RK_CHARTS[def.id] = def; }
+
+// 汎用の数値ヘルパー（highway.js/hud.js からも使う。巻き上げにより結合順に関わらず参照可能）
+function clamp(v, lo, hi){ return v < lo ? lo : (v > hi ? hi : v); }
+function lerp(a, b, t){ return a + (b - a) * t; }
+
+const RK_SCREEN_IDS = ['rk-title', 'rk-settings', 'rk-micsetup', 'rk-tuner', 'rk-result'];
+const RK_DEFAULT_OFFSET_SEC = -0.12;
+
+class RhythmGame {
+  constructor(gameDef){
+    this.gameDef = gameDef;
+    this.mode = 'boot';
+    this.selectedInstrumentId = null;
+    this.selectedModeKey = 'wait'; // 'wait'(れんしゅう) | 'rhythm'
+    this.selectedChartId = null;
+    this.naming = gameDef.noteNaming || 'doremi';
+    this.offsetSec = RK_DEFAULT_OFFSET_SEC;
+    this.instrument = null;
+    this.judgeMode = null; // 'pitch' | 'lane'
+    this.isWaitMode = false;
+    this.judge = null;
+    this.highway = null;
+    this.fingerboard = null;
+    this._micLevel = 0;
+    this._tunerDetected = null;
+    this.inputRouter = null; // instrument確定後に _setupInputRouter() で生成する（micパラメータが楽器依存のため）
+    this._laneButtonEls = null;
+  }
+
+  // instrument.mic を渡してInputRouterを（再）生成する。楽器を変えるたびに呼び直す前提。
+  _setupInputRouter(instrument){
+    if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
+    const mic = (instrument && instrument.mic) || {};
+    this.inputRouter = (typeof InputRouter !== 'undefined' && InputRouter && InputRouter.create)
+      ? InputRouter.create({ fmin: mic.fmin, fmax: mic.fmax, levelMin: mic.levelMin })
+      : null;
+    if (this.inputRouter && this.inputRouter.onEvent){
+      this.inputRouter.onEvent((ev) => this._handleInputEvent(ev));
+    }
+  }
+
+  // --- 起動 ---
+  boot(){
+    this._bindStaticEvents();
+    this.selectedInstrumentId = this.gameDef.instruments[0] || null;
+    const charts = this._selectableCharts();
+    this.selectedChartId = charts.length ? charts[0].id : null;
+    this._toTitle();
+  }
+
+  _now(){
+    const ctx = (typeof getCtx === 'function') ? getCtx() : null;
+    if (ctx && ctx.currentTime != null) return ctx.currentTime;
+    return performance.now() / 1000;
+  }
+
+  _selectableCharts(){
+    const def = this.gameDef;
+    if (def.charts === 'all') return Object.keys(__RK_CHARTS).map(id => __RK_CHARTS[id]);
+    return (def.charts || []).map(id => __RK_CHARTS[id]).filter(Boolean);
+  }
+
+  _showScreen(id){
+    for (const s of RK_SCREEN_IDS){
+      const el = document.getElementById(s);
+      if (el) el.classList.toggle('rk-hidden', s !== id);
+    }
+  }
+
+  // --- 静的DOMイベント（一度だけバインド） ---
+  _bindStaticEvents(){
+    const on = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', fn);
+    };
+    on('rk-btn-settings', () => this._toSettings());
+    on('rk-btn-settings-back', () => this._toTitle());
+    on('rk-btn-start', () => this._onStartTapped());
+    on('rk-btn-tuner', () => this._toTuner());
+    on('rk-btn-tuner-back', () => this._onTunerBack());
+    on('rk-btn-mic-ok', () => this._onMicOk());
+    on('rk-btn-mic-skip', () => this._onMicSkip());
+    on('rk-btn-retry', () => this._startPlay());
+    on('rk-btn-song-select', () => this._toTitle());
+
+    const slider = document.getElementById('rk-offset-slider');
+    if (slider){
+      this.offsetSec = parseFloat(slider.value) || RK_DEFAULT_OFFSET_SEC;
+      slider.addEventListener('input', (e) => { this.offsetSec = parseFloat(e.target.value); });
+    }
+
+    const onViewportChange = () => {
+      if (this.highway) this.highway.fit();
+      this._positionLaneButtons();
+    };
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', onViewportChange);
+  }
+
+  // --- title ---
+  _toTitle(){
+    this.mode = 'title';
+    if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
+    this._renderTitleScreen();
+    this._showScreen('rk-title');
+  }
+
+  _renderTitleScreen(){
+    const def = this.gameDef;
+    const titleEl = document.getElementById('rk-game-title');
+    if (titleEl) titleEl.textContent = def.meta.title;
+    const subEl = document.getElementById('rk-game-subtitle');
+    if (subEl) subEl.textContent = def.meta.subtitle || '';
+
+    const instRow = document.getElementById('rk-instrument-row');
+    if (instRow){
+      instRow.innerHTML = '';
+      def.instruments.forEach((id) => {
+        const inst = __RK_INSTRUMENTS[id];
+        if (!inst) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'rk-chip' + (id === this.selectedInstrumentId ? ' rk-active' : '');
+        btn.textContent = (inst.emoji ? inst.emoji + ' ' : '') + inst.label;
+        btn.addEventListener('click', () => {
+          this.selectedInstrumentId = id;
+          this._renderTitleScreen();
+        });
+        instRow.appendChild(btn);
+      });
+    }
+
+    const modeRow = document.getElementById('rk-mode-row');
+    if (modeRow){
+      modeRow.innerHTML = '';
+      [['wait', 'れんしゅう'], ['rhythm', 'リズム']].forEach(([key, label]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'rk-chip' + (key === this.selectedModeKey ? ' rk-active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+          this.selectedModeKey = key;
+          this._renderTitleScreen();
+        });
+        modeRow.appendChild(btn);
+      });
+    }
+
+    const songList = document.getElementById('rk-song-list');
+    if (songList){
+      songList.innerHTML = '';
+      const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
+      this._selectableCharts().forEach((chart) => {
+        const inRange = !instrument || !chart.range
+          || (chart.range.min >= instrument.midiRange.min && chart.range.max <= instrument.midiRange.max);
+        const row = document.createElement('div');
+        row.className = 'rk-song'
+          + (chart.id === this.selectedChartId ? ' rk-active' : '')
+          + (inRange ? '' : ' rk-disabled');
+        const title = document.createElement('span');
+        title.textContent = chart.title;
+        const right = document.createElement('span');
+        right.className = 'rk-song-right';
+        const stars = document.createElement('span');
+        stars.className = 'rk-song-stars';
+        stars.textContent = '★'.repeat(chart.level || 1);
+        right.appendChild(stars);
+        const best = this._getBestScore(chart.id, this.selectedInstrumentId, this.selectedModeKey);
+        if (best != null){
+          const bestEl = document.createElement('span');
+          bestEl.className = 'rk-song-best';
+          bestEl.textContent = '🏆' + best;
+          right.appendChild(bestEl);
+        }
+        row.appendChild(title);
+        row.appendChild(right);
+        if (inRange){
+          row.addEventListener('click', () => {
+            if (this.selectedChartId === chart.id){
+              // 選択中の曲をもう一度タップ＝プレビュー再生（SPEC「選曲画面で曲の最初の4音を聴ける」）
+              this._previewChart(chart);
+            } else {
+              this.selectedChartId = chart.id;
+              this._renderTitleScreen();
+            }
+          });
+        }
+        songList.appendChild(row);
+      });
+    }
+
+    this._renderNamingChips('rk-naming-row');
+  }
+
+  _renderNamingChips(rowId){
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    row.innerHTML = '';
+    [['doremi', 'ドレミ'], ['abc', 'ABC']].forEach(([key, label]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'rk-chip' + (key === this.naming ? ' rk-active' : '');
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        this.naming = key;
+        this._renderNamingChips(rowId);
+        if (this.highway) this.highway.setNaming(this.naming);
+      });
+      row.appendChild(btn);
+    });
+  }
+
+  // 選曲画面プレビュー: 選択中楽器のsynthPatchでchart.notesの先頭4音をsecPerBeat間隔で鳴らす。
+  // 連打で多重再生しないよう再生中フラグで抑止する。
+  _previewChart(chart){
+    if (this._previewing) return;
+    const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
+    if (!instrument || typeof playNote !== 'function') return;
+    if (typeof unlock === 'function') unlock();
+    const notes = chart.notes.slice(0, 4);
+    if (!notes.length) return;
+    this._previewing = true;
+    const secPerBeat = 60 / chart.bpm;
+    notes.forEach((note, i) => {
+      setTimeout(() => {
+        playNote(note.midi, { patch: instrument.synthPatch });
+        if (i === notes.length - 1) this._previewing = false;
+      }, i * secPerBeat * 1000);
+    });
+  }
+
+  // ベストスコア（localStorage・リズムモードのみ。key=rk_best_<gameId>_<chartId>_<instrumentId>_<mode>）。
+  // localStorage不可環境（file://・プライベートモード等）ではtry/catchで安全に無視する。
+  _bestScoreKey(chartId, instrumentId, modeKey){
+    return 'rk_best_' + this.gameDef.meta.id + '_' + chartId + '_' + instrumentId + '_' + modeKey;
+  }
+  _getBestScore(chartId, instrumentId, modeKey){
+    try {
+      if (typeof localStorage === 'undefined' || !chartId || !instrumentId) return null;
+      const v = localStorage.getItem(this._bestScoreKey(chartId, instrumentId, modeKey));
+      return v != null ? parseInt(v, 10) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  _maybeSaveBestScore(){
+    if (this.isWaitMode) return; // SPEC: ベストスコアはリズムモードのみ
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const prev = this._getBestScore(this.selectedChartId, this.selectedInstrumentId, this.selectedModeKey);
+      if (prev == null || this.judge.score > prev){
+        const key = this._bestScoreKey(this.selectedChartId, this.selectedInstrumentId, this.selectedModeKey);
+        localStorage.setItem(key, String(this.judge.score));
+      }
+    } catch (e) {
+      // localStorage不可環境は無視
+    }
+  }
+
+  _onStartTapped(){
+    if (typeof unlock === 'function') unlock();
+    const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
+    if (!instrument || !this.selectedChartId || !__RK_CHARTS[this.selectedChartId]) return;
+    this.instrument = instrument;
+    this.selectedChart = __RK_CHARTS[this.selectedChartId];
+    this.isWaitMode = this.selectedModeKey === 'wait';
+    this._setupInputRouter(instrument);
+
+    const wantsPitch = instrument.defaultJudgeMode === 'pitch';
+    if (wantsPitch){
+      this.judgeMode = 'pitch';
+      this._toMicSetup();
+    } else {
+      this.judgeMode = instrument.defaultJudgeMode || 'lane';
+      this._startPlay();
+    }
+  }
+
+  // --- settings ---
+  _toSettings(){
+    this.mode = 'settings';
+    this._renderNamingChips('rk-naming-row');
+    this._showScreen('rk-settings');
+  }
+
+  // --- micSetup ---
+  async _toMicSetup(){
+    this.mode = 'micSetup';
+    this._micLevel = 0;
+    const msgEl = document.getElementById('rk-mic-message');
+    if (msgEl) msgEl.textContent = 'がっきを マイクに ちかづけて おとを だしてね';
+    this._showScreen('rk-micsetup');
+    this._startMicMeterLoop();
+    const ok = (this.inputRouter && this.inputRouter.startMic) ? await this.inputRouter.startMic() : false;
+    if (this.mode !== 'micSetup') return; // 待っている間に画面遷移していたら何もしない
+    if (!ok){
+      if (msgEl) msgEl.textContent = 'マイクが つかえないので タップで あそぼう';
+      this.judgeMode = 'lane';
+    }
+  }
+
+  _startMicMeterLoop(){
+    const canvas = document.getElementById('rk-mic-meter-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const step = () => {
+      if (this.mode !== 'micSetup') return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const levelMin = (this.instrument && this.instrument.mic && this.instrument.mic.levelMin) || 0;
+      drawRkMicMeter(ctx, 4, 2, canvas.width - 8, canvas.height - 4, this._micLevel, levelMin);
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  _onMicOk(){
+    this._startPlay();
+  }
+
+  _onMicSkip(){
+    if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
+    this.judgeMode = 'lane';
+    this._startPlay();
+  }
+
+  // --- play ---
+  _startPlay(){
+    this.mode = 'play';
+    this._showScreen(null);
+    const canvas = document.getElementById('rk-canvas');
+    if (!this.highway){
+      this.highway = new Highway(canvas, this.instrument, this.naming);
+    } else {
+      this.highway.setInstrument(this.instrument);
+      this.highway.setNaming(this.naming);
+      this.highway.fit();
+    }
+    if (typeof FingerBoard !== 'undefined'){
+      if (!this.fingerboard) this.fingerboard = new FingerBoard(this.instrument, this.naming);
+      else {
+        this.fingerboard.setInstrument(this.instrument);
+        this.fingerboard.setNaming(this.naming);
+      }
+    }
+    this.judge = new JudgeEngine(
+      this.selectedChart.notes, this.selectedChart.bpm, this.instrument,
+      this.judgeMode, this.isWaitMode, this.offsetSec
+    );
+
+    this._teardownLaneButtons();
+    if (this.judgeMode === 'lane' && this.inputRouter){
+      const laneEl = document.getElementById('rk-lane-buttons');
+      if (laneEl && this.inputRouter.attachTouch){
+        this._laneButtonEls = this.inputRouter.attachTouch(laneEl, this.instrument.lanes);
+        this._positionLaneButtons();
+      }
+      if (this.inputRouter.attachKeyboard) this._keyboardDetach = this.inputRouter.attachKeyboard(this.instrument.lanes);
+    }
+
+    const countInBeats = this.selectedChart.countInBeats != null ? this.selectedChart.countInBeats : 4;
+    const secPerBeat = 60 / this.selectedChart.bpm;
+    if (typeof metronome !== 'undefined' && metronome.start){
+      // count-inのcountInBeats拍だけ鳴らし、曲本体（beat0以降）ではメトロノームを止める
+      metronome.start(this.selectedChart.bpm, (beat) => {
+        if (beat >= countInBeats - 1 && typeof metronome.stop === 'function') metronome.stop();
+      });
+    }
+    this.playStartAudioTime = this._now() + countInBeats * secPerBeat;
+    // waitモード用のクロック。カウントイン分をマイナスから始め、_tick内でactiveノートの
+    // targetSecにクランプする（実時間を無条件に進めるとノートが判定線を通過してしまうため）。
+    this._songClock = -(countInBeats * secPerBeat);
+    this._lastFrameTime = this._now();
+    this._tick();
+  }
+
+  // 曲内経過秒の単一ソース。waitモードは「正解待ちで停止するクロック」、
+  // 通常モードはAudioContext.currentTime基準の実時間。_tick()と_handleInputEvent()の
+  // 両方がこれを使うことで、判定に使う時刻と描画に使う時刻の不整合を防ぐ。
+  _songTime(){
+    if (this.isWaitMode) return this._songClock;
+    return this._now() - this.playStartAudioTime;
+  }
+
+  // canvas上のレーンレイアウト(highway.laneButtons)に合わせて、input_router.jsが
+  // 生成した実DOMボタンをCSSで重ねて配置する。resize時にも呼び直す。
+  _positionLaneButtons(){
+    if (!this._laneButtonEls || !this.highway) return;
+    const canvas = document.getElementById('rk-canvas');
+    const stage = document.getElementById('rk-stage');
+    if (!canvas || !stage) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const offsetX = canvasRect.left - stageRect.left;
+    const offsetY = canvasRect.top - stageRect.top;
+    this.highway.laneButtons.forEach((b, i) => {
+      const el = this._laneButtonEls[i];
+      if (!el) return;
+      el.style.left = (offsetX + b.x + 4) + 'px';
+      el.style.top = (offsetY + b.y) + 'px';
+      el.style.width = (b.w - 8) + 'px';
+      el.style.height = b.h + 'px';
+    });
+  }
+
+  _teardownLaneButtons(){
+    const laneEl = document.getElementById('rk-lane-buttons');
+    if (laneEl) laneEl.innerHTML = '';
+    this._laneButtonEls = null;
+    if (this._keyboardDetach){ this._keyboardDetach(); this._keyboardDetach = null; }
+  }
+
+  _lastNoteTargetSec(){
+    const runners = this.judge.runners;
+    return runners.length ? runners[runners.length - 1].targetSec : 0;
+  }
+
+  _tick(){
+    if (this.mode !== 'play') return;
+    const now = this._now();
+    const dt = Math.max(0, now - this._lastFrameTime);
+    this._lastFrameTime = now;
+
+    if (this.isWaitMode){
+      this._songClock += dt;
+      const active = this.judge.runners[this.judge.cursor];
+      if (active) this._songClock = Math.min(this._songClock, active.targetSec);
+    }
+    const songTimeSec = this._songTime();
+
+    const missed = this.judge.update(songTimeSec);
+    if (missed && missed.length){
+      for (const r of missed){
+        const pos = this.instrument.noteToLane(r.note.midi);
+        this.highway.spawnMissFx(pos.laneIndex);
+      }
+      if (typeof playSfx === 'function') playSfx('miss');
+    }
+    this.highway.updateFx(dt);
+    this._drawPlayFrame(songTimeSec);
+
+    const lastTarget = this._lastNoteTargetSec();
+    if (this.judge.isDone && songTimeSec >= lastTarget + 2){
+      this._toResult();
+      return;
+    }
+    requestAnimationFrame(() => this._tick());
+  }
+
+  // judge.runners[index] を FingerBoard.draw が要求する {laneIndex, fret, midi} に解決する。
+  // index が範囲外/undefinedならnull（fingerboard.js側で「何も描かない」に倒れる）。
+  _fingerboardPos(index){
+    const runner = index != null ? this.judge.runners[index] : null;
+    if (!runner) return null;
+    const pos = this.instrument.noteToLane(runner.note.midi);
+    return { laneIndex: pos.laneIndex, fret: pos.fret, midi: runner.note.midi };
+  }
+  // fromIndex以降で最初にstate==='pending'のrunnerインデックスを探す（無ければ-1）。
+  // judge.cursorの次に弾くべきノート（next）を求めるのに使う。
+  _nextPendingIndex(fromIndex){
+    const runners = this.judge.runners;
+    for (let i = fromIndex; i < runners.length; i++){
+      if (runners[i].state === 'pending') return i;
+    }
+    return -1;
+  }
+
+  _drawPlayFrame(songTimeSec){
+    const theme = this.gameDef.theme || {};
+    this.highway.draw(this.judge.runners, songTimeSec, theme);
+    const ctx = this.highway.ctx;
+    drawRkScoreHud(ctx, 12, 12, this.judge.score, this.judge.combo);
+    if (this.judgeMode === 'pitch'){
+      const levelMin = (this.instrument.mic && this.instrument.mic.levelMin) || 0;
+      drawRkMicMeter(ctx, this.highway.w - 132, 12, 120, 14, this._micLevel, levelMin);
+      if (this.fingerboard){
+        const current = this._fingerboardPos(this.judge.cursor);
+        const next = this._fingerboardPos(this._nextPendingIndex(this.judge.cursor + 1));
+        this.fingerboard.draw(
+          ctx, 0, this.highway.judgeY, this.highway.w, this.highway.h - this.highway.judgeY,
+          current, next, theme
+        );
+      }
+    }
+    if (!this.isWaitMode){
+      const totalSec = this._lastNoteTargetSec() + 2;
+      drawRkProgressBar(ctx, 12, this.highway.h - 14, this.highway.w - 24, Math.max(0, songTimeSec), totalSec);
+    }
+  }
+
+  // --- result ---
+  _toResult(){
+    this.mode = 'result';
+    this._teardownLaneButtons();
+    if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
+    this._showScreen('rk-result');
+    this._maybeSaveBestScore();
+    this._resultRank = rkResultRank(this.judge.stats);
+    if (typeof playSfx === 'function') playSfx('fanfare');
+    this._resultFrame = 0;
+    this._resultLoop();
+  }
+
+  // リザルト表示中だけ回すrAFループ（紙吹雪を動かすため、パネルごと毎フレーム再描画する）。
+  // mode!=='result'になったら自然停止する（もういちど/きょくをえらぶタップでmodeが変わる）。
+  _resultLoop(){
+    if (this.mode !== 'result') return;
+    const ctx = this.highway.ctx;
+    const w = this.highway.w, h = this.highway.h;
+    ctx.clearRect(0, 0, w, h);
+    drawRkResultPanel(ctx, w, h, this._resultRank, this.judge.stats, this.isWaitMode);
+    drawRkConfetti(ctx, w, h, this._resultFrame);
+    this._resultFrame++;
+    requestAnimationFrame(() => this._resultLoop());
+  }
+
+  // --- tuner（title から直行・戻る） ---
+  _toTuner(){
+    if (typeof unlock === 'function') unlock();
+    this.mode = 'tuner';
+    this._tunerDetected = null;
+    this._showScreen('rk-tuner');
+    const canvas = document.getElementById('rk-canvas');
+    const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId] || this.instrument;
+    this._setupInputRouter(instrument);
+    if (!this.highway) this.highway = new Highway(canvas, instrument, this.naming);
+    else this.highway.setInstrument(instrument);
+    this.highway.fit();
+    if (this.inputRouter && this.inputRouter.startMic) this.inputRouter.startMic();
+    this._tunerLoop();
+  }
+
+  _tunerLoop(){
+    if (this.mode !== 'tuner') return;
+    const ctx = this.highway.ctx;
+    ctx.clearRect(0, 0, this.highway.w, this.highway.h);
+    drawRkTuner(ctx, this.highway.w, this.highway.h, this._tunerDetected, this.naming);
+    requestAnimationFrame(() => this._tunerLoop());
+  }
+
+  _onTunerBack(){
+    if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
+    this._toTitle();
+  }
+
+  // --- 統一入力イベントの受け口（input_router.js からのコールバック） ---
+  _handleInputEvent(ev){
+    if (ev.kind === 'pitch'){
+      // play中のマイクレベル表示がmicSetup時の値のまま凍結しないよう、モードに関わらず常に更新する
+      this._micLevel = ev.level || 0;
+      if (this.mode === 'micSetup'){
+        return;
+      }
+      if (this.mode === 'tuner'){
+        const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId] || this.instrument || {};
+        const mic = instrument.mic || {};
+        const clarityMin = mic.clarityMin != null ? mic.clarityMin : 0.83;
+        this._tunerDetected = (ev.clarity != null && ev.clarity >= clarityMin)
+          ? { midi: ev.midi, cents: ev.cents } : null;
+        return;
+      }
+    }
+    if (this.mode !== 'play' || !this.judge) return;
+    const songTimeSec = this._songTime();
+    let result = null;
+    if (ev.kind === 'pitch') result = this.judge.feedPitch(ev, songTimeSec);
+    else if (ev.kind === 'lane') result = this.judge.feedLane(ev, songTimeSec);
+    if (result){
+      const pos = this.instrument.noteToLane(result.runner.note.midi);
+      this.highway.spawnHitFx(pos.laneIndex, result.rank);
+      if (typeof playSfx === 'function') playSfx(result.rank);
+      // れんしゅうモードの正解音・リズムモードのヒット音（自分が弾いた音の代わりにもなる）
+      if (typeof playNote === 'function') playNote(result.runner.note.midi, { patch: this.instrument.synthPatch });
+      this._maybeCheer();
+    }
+  }
+
+  // GAME_DEF.theme.mascot.cheer をコンボ5の倍数ヒットごとに順繰りで表示する（乱数不使用・決定論）。
+  // mascot.enableがfalsyなら何もしない。文言の中身は一切解釈せずhighwayへそのまま渡すだけ。
+  _maybeCheer(){
+    const mascot = (this.gameDef.theme && this.gameDef.theme.mascot) || null;
+    if (!mascot || !mascot.enable || !mascot.cheer || !mascot.cheer.length) return;
+    if (this.judge.combo === 0 || this.judge.combo % 5 !== 0) return;
+    const idx = (this.judge.combo / 5 - 1) % mascot.cheer.length;
+    this.highway.spawnCheerFx(mascot.cheer[idx]);
+    this.highway.spawnComboPulse();
+    if (typeof playSfx === 'function') playSfx('cheer');
+  }
+}
+
+function createRhythmGame(gameDef){
+  const game = new RhythmGame(gameDef);
+  game.boot();
+  return game;
+}
+
+// ---------------------------------------------------------------------------
+// 楽器定義（instruments/*.js）
+// ---------------------------------------------------------------------------
+const INSTRUMENT_BASS = {
+  id: 'bass', label: 'ベース', emoji: '🎸',
+  judgeModes: ['pitch', 'lane'],
+  defaultJudgeMode: 'pitch',
+  // TAB譜と同じ並び。上から G D A E
+  lanes: [
+    { id: 'G', label: 'G(ソ)', openMidi: 43, color: '#f6c945' },
+    { id: 'D', label: 'D(レ)', openMidi: 38, color: '#6fd66f' },
+    { id: 'A', label: 'A(ラ)', openMidi: 33, color: '#5db4f0' },
+    { id: 'E', label: 'E(ミ)', openMidi: 28, color: '#ef8bb0' },
+  ],
+  midiRange: { min: 28, max: 55 },
+  mic: { fmin: 35, fmax: 420, clarityMin: 0.83, levelMin: 0.01 },
+  display: { type: 'fretboard', fretCount: 7 },
+  // midi → {laneIndex, fret}。ローフレット(0-5)優先、無ければ最も近い写像でfret上限12にクランプ
+  noteToLane(midi) {
+    var lanes = this.lanes;
+    var i, fret, candidates = [];
+    for (i = 0; i < lanes.length; i++) {
+      fret = midi - lanes[i].openMidi;
+      if (fret >= 0 && fret <= 5) {
+        candidates.push({ laneIndex: i, fret: fret });
+      }
+    }
+    if (candidates.length > 0) {
+      candidates.sort(function (a, b) {
+        return (a.fret - b.fret) || (a.laneIndex - b.laneIndex);
+      });
+      return { laneIndex: candidates[0].laneIndex, fret: candidates[0].fret };
+    }
+    var best = null;
+    for (i = 0; i < lanes.length; i++) {
+      fret = midi - lanes[i].openMidi;
+      var clamped = Math.max(0, Math.min(12, fret));
+      var dist = Math.abs(fret - clamped);
+      var better = best === null
+        || dist < best.dist
+        || (dist === best.dist && clamped < best.fret)
+        || (dist === best.dist && clamped === best.fret && i < best.laneIndex);
+      if (better) {
+        best = { laneIndex: i, fret: clamped, dist: dist };
+      }
+    }
+    return { laneIndex: best.laneIndex, fret: best.fret };
+  },
+  // bassは倍音で基音とオクターブが混同されやすいのでオクターブ違い許容
+  pitchTolerance: 'pitchClass',
+  synthPatch: 'bass',
+};
+registerInstrument(INSTRUMENT_BASS);
+
+const INSTRUMENT_GUITAR = {
+  id: 'guitar', label: 'ギター', emoji: '🪕',
+  judgeModes: ['pitch', 'lane'],
+  defaultJudgeMode: 'pitch',
+  // TAB譜と同じ並び。上から e B G D A E（標準チューニング）
+  lanes: [
+    { id: 'e', label: 'e(高いミ)', openMidi: 64, color: '#ff8787' },
+    { id: 'B', label: 'B(シ)', openMidi: 59, color: '#ffa94d' },
+    { id: 'G', label: 'G(ソ)', openMidi: 55, color: '#ffe066' },
+    { id: 'D', label: 'D(レ)', openMidi: 50, color: '#69db7c' },
+    { id: 'A', label: 'A(ラ)', openMidi: 45, color: '#4dabf7' },
+    { id: 'E', label: 'E(ミ)', openMidi: 40, color: '#9775fa' },
+  ],
+  midiRange: { min: 40, max: 76 },
+  mic: { fmin: 70, fmax: 1400, clarityMin: 0.83, levelMin: 0.01 },
+  display: { type: 'fretboard', fretCount: 7 },
+  // midi → {laneIndex, fret}。ローフレット(0-5)優先、無ければ最も近い写像でfret上限12にクランプ
+  noteToLane(midi) {
+    var lanes = this.lanes;
+    var i, fret, candidates = [];
+    for (i = 0; i < lanes.length; i++) {
+      fret = midi - lanes[i].openMidi;
+      if (fret >= 0 && fret <= 5) {
+        candidates.push({ laneIndex: i, fret: fret });
+      }
+    }
+    if (candidates.length > 0) {
+      candidates.sort(function (a, b) {
+        return (a.fret - b.fret) || (a.laneIndex - b.laneIndex);
+      });
+      return { laneIndex: candidates[0].laneIndex, fret: candidates[0].fret };
+    }
+    var best = null;
+    for (i = 0; i < lanes.length; i++) {
+      fret = midi - lanes[i].openMidi;
+      var clamped = Math.max(0, Math.min(12, fret));
+      var dist = Math.abs(fret - clamped);
+      var better = best === null
+        || dist < best.dist
+        || (dist === best.dist && clamped < best.fret)
+        || (dist === best.dist && clamped === best.fret && i < best.laneIndex);
+      if (better) {
+        best = { laneIndex: i, fret: clamped, dist: dist };
+      }
+    }
+    return { laneIndex: best.laneIndex, fret: best.fret };
+  },
+  pitchTolerance: 'pitchClass',
+  synthPatch: 'guitar',
+};
+registerInstrument(INSTRUMENT_GUITAR);
+
+const INSTRUMENT_PIANO = {
+  id: 'piano', label: 'ピアノ', emoji: '🎹',
+  judgeModes: ['lane', 'pitch'],
+  defaultJudgeMode: 'lane',
+  // C4〜C5 の白鍵8本
+  lanes: [
+    { id: 'C4', label: 'ド', openMidi: 60, color: '#ff6b6b' },
+    { id: 'D4', label: 'レ', openMidi: 62, color: '#ffa94d' },
+    { id: 'E4', label: 'ミ', openMidi: 64, color: '#ffe066' },
+    { id: 'F4', label: 'ファ', openMidi: 65, color: '#8ce99a' },
+    { id: 'G4', label: 'ソ', openMidi: 67, color: '#63e6be' },
+    { id: 'A4', label: 'ラ', openMidi: 69, color: '#66d9e8' },
+    { id: 'B4', label: 'シ', openMidi: 71, color: '#91a7ff' },
+    { id: 'C5', label: 'ド', openMidi: 72, color: '#f783ac' },
+  ],
+  midiRange: { min: 60, max: 72 },
+  mic: { fmin: 230, fmax: 560, clarityMin: 0.83, levelMin: 0.01 },
+  display: { type: 'keyboard' },
+  // midi → {laneIndex, fret:null}。オクターブを畳んで白鍵に丸める（黒鍵は半音下の白鍵へ）
+  // 同梱チャートはbass音域(28-55)で書かれているため、pitch class（音名）だけを見て
+  // C4〜B4の7レーンへ丸める。ちょうどmidi72(C5)の時だけ8番目のレーンを使う。
+  noteToLane(midi) {
+    if (midi === 72) {
+      return { laneIndex: 7, fret: null };
+    }
+    var pc = ((midi % 12) + 12) % 12;
+    var whiteLane = { 0: 0, 2: 1, 4: 2, 5: 3, 7: 4, 9: 5, 11: 6 }; // C D E F G A B
+    var blackToWhitePc = { 1: 0, 3: 2, 6: 5, 8: 7, 10: 9 }; // 半音下の白鍵へ丸める
+    var wpc = whiteLane.hasOwnProperty(pc) ? pc : blackToWhitePc[pc];
+    return { laneIndex: whiteLane[wpc], fret: null };
+  },
+  pitchTolerance: 'exact',
+  synthPatch: 'piano',
+};
+registerInstrument(INSTRUMENT_PIANO);
+
+// ---------------------------------------------------------------------------
+// 曲データ（charts/*.js）
+// ---------------------------------------------------------------------------
+// 同梱チャート10曲。全音域はbassのmidiRange(28-55)に収まるよう書く。
+// pianoはnoteToLaneのオクターブ丸めでそのまま同じチャートが遊べる。
+// 上達順(選曲リスト表示順) = registerChart呼び出し順:
+// open_strings → doremi → tulip → bunbun → frets123 → kirakira → mary → kaeru → walking → rock_riff
+
+registerChart({
+  id: 'open_strings', title: 'かいほうげんマスター', level: 1,
+  bpm: 70, countInBeats: 4,
+  // E1 A1 D2 G2 の開放弦を2拍ずつ×3周
+  notes: [
+    { beat: 0, midi: 28, len: 2 },
+    { beat: 2, midi: 33, len: 2 },
+    { beat: 4, midi: 38, len: 2 },
+    { beat: 6, midi: 43, len: 2 },
+    { beat: 8, midi: 28, len: 2 },
+    { beat: 10, midi: 33, len: 2 },
+    { beat: 12, midi: 38, len: 2 },
+    { beat: 14, midi: 43, len: 2 },
+    { beat: 16, midi: 28, len: 2 },
+    { beat: 18, midi: 33, len: 2 },
+    { beat: 20, midi: 38, len: 2 },
+    { beat: 22, midi: 43, len: 2 },
+  ],
+  range: { min: 28, max: 43 },
+});
+
+registerChart({
+  id: 'doremi', title: 'ドレミのやま', level: 1,
+  bpm: 80, countInBeats: 4,
+  // C2メジャースケール上行 → 下行
+  notes: [
+    { beat: 0, midi: 36 },
+    { beat: 1, midi: 38 },
+    { beat: 2, midi: 40 },
+    { beat: 3, midi: 41 },
+    { beat: 4, midi: 43 },
+    { beat: 5, midi: 45 },
+    { beat: 6, midi: 47 },
+    { beat: 7, midi: 48 },
+    { beat: 8, midi: 47 },
+    { beat: 9, midi: 45 },
+    { beat: 10, midi: 43 },
+    { beat: 11, midi: 41 },
+    { beat: 12, midi: 40 },
+    { beat: 13, midi: 38 },
+    { beat: 14, midi: 36, len: 2 },
+  ],
+  range: { min: 36, max: 48 },
+});
+
+registerChart({
+  id: 'tulip', title: 'チューリップ', level: 1,
+  bpm: 85, countInBeats: 4,
+  // ドレミ ドレミ ソミレドレミレ / ドレミ ドレミ ソミレドレミド（フレーズ末は2拍）
+  notes: [
+    { beat: 0, midi: 36 }, { beat: 1, midi: 38 }, { beat: 2, midi: 40 },
+    { beat: 3, midi: 36 }, { beat: 4, midi: 38 }, { beat: 5, midi: 40 },
+    { beat: 6, midi: 43 }, { beat: 7, midi: 40 }, { beat: 8, midi: 38 },
+    { beat: 9, midi: 36 }, { beat: 10, midi: 38 }, { beat: 11, midi: 40 },
+    { beat: 12, midi: 38, len: 2 },
+    { beat: 14, midi: 36 }, { beat: 15, midi: 38 }, { beat: 16, midi: 40 },
+    { beat: 17, midi: 36 }, { beat: 18, midi: 38 }, { beat: 19, midi: 40 },
+    { beat: 20, midi: 43 }, { beat: 21, midi: 40 }, { beat: 22, midi: 38 },
+    { beat: 23, midi: 36 }, { beat: 24, midi: 38 }, { beat: 25, midi: 40 },
+    { beat: 26, midi: 36, len: 2 },
+  ],
+  range: { min: 36, max: 43 },
+});
+
+registerChart({
+  id: 'bunbun', title: 'ぶんぶんぶん', level: 1,
+  bpm: 80, countInBeats: 4,
+  // ソミミ ファレレ ドレミファソソソ / ソミミ ファレレ ドミソソド（フレーズ末は2拍）
+  notes: [
+    { beat: 0, midi: 43 }, { beat: 1, midi: 40 }, { beat: 2, midi: 40 },
+    { beat: 3, midi: 41 }, { beat: 4, midi: 38 }, { beat: 5, midi: 38 },
+    { beat: 6, midi: 36 }, { beat: 7, midi: 38 }, { beat: 8, midi: 40 },
+    { beat: 9, midi: 41 }, { beat: 10, midi: 43 }, { beat: 11, midi: 43 },
+    { beat: 12, midi: 43, len: 2 },
+    { beat: 14, midi: 43 }, { beat: 15, midi: 40 }, { beat: 16, midi: 40 },
+    { beat: 17, midi: 41 }, { beat: 18, midi: 38 }, { beat: 19, midi: 38 },
+    { beat: 20, midi: 36 }, { beat: 21, midi: 40 }, { beat: 22, midi: 43 },
+    { beat: 23, midi: 43 },
+    { beat: 24, midi: 36, len: 2 },
+  ],
+  range: { min: 36, max: 43 },
+});
+
+registerChart({
+  id: 'frets123', title: 'ゆびのたいそう', level: 2,
+  bpm: 80, countInBeats: 4,
+  // 各弦でフレット0→1→2→3→2→1→0。E弦から順にA D Gへ
+  notes: [
+    { beat: 0, midi: 28 },
+    { beat: 1, midi: 29 },
+    { beat: 2, midi: 30 },
+    { beat: 3, midi: 31 },
+    { beat: 4, midi: 30 },
+    { beat: 5, midi: 29 },
+    { beat: 6, midi: 28 },
+    { beat: 7, midi: 33 },
+    { beat: 8, midi: 34 },
+    { beat: 9, midi: 35 },
+    { beat: 10, midi: 36 },
+    { beat: 11, midi: 35 },
+    { beat: 12, midi: 34 },
+    { beat: 13, midi: 33 },
+    { beat: 14, midi: 38 },
+    { beat: 15, midi: 39 },
+    { beat: 16, midi: 40 },
+    { beat: 17, midi: 41 },
+    { beat: 18, midi: 40 },
+    { beat: 19, midi: 39 },
+    { beat: 20, midi: 38 },
+    { beat: 21, midi: 43 },
+    { beat: 22, midi: 44 },
+    { beat: 23, midi: 45 },
+    { beat: 24, midi: 46 },
+    { beat: 25, midi: 45 },
+    { beat: 26, midi: 44 },
+    { beat: 27, midi: 43, len: 2 },
+  ],
+  range: { min: 28, max: 46 },
+});
+
+registerChart({
+  id: 'kirakira', title: 'きらきらぼし', level: 2,
+  bpm: 90, countInBeats: 4,
+  // CCGGAAG FFEEDDC GGFFEED GGFFEED CCGGAAG FFEEDDC（各フレーズ末は2拍）
+  notes: [
+    { beat: 0, midi: 36 }, { beat: 1, midi: 36 }, { beat: 2, midi: 43 }, { beat: 3, midi: 43 },
+    { beat: 4, midi: 45 }, { beat: 5, midi: 45 }, { beat: 6, midi: 43, len: 2 },
+    { beat: 8, midi: 41 }, { beat: 9, midi: 41 }, { beat: 10, midi: 40 }, { beat: 11, midi: 40 },
+    { beat: 12, midi: 38 }, { beat: 13, midi: 38 }, { beat: 14, midi: 36, len: 2 },
+    { beat: 16, midi: 43 }, { beat: 17, midi: 43 }, { beat: 18, midi: 41 }, { beat: 19, midi: 41 },
+    { beat: 20, midi: 40 }, { beat: 21, midi: 40 }, { beat: 22, midi: 38, len: 2 },
+    { beat: 24, midi: 43 }, { beat: 25, midi: 43 }, { beat: 26, midi: 41 }, { beat: 27, midi: 41 },
+    { beat: 28, midi: 40 }, { beat: 29, midi: 40 }, { beat: 30, midi: 38, len: 2 },
+    { beat: 32, midi: 36 }, { beat: 33, midi: 36 }, { beat: 34, midi: 43 }, { beat: 35, midi: 43 },
+    { beat: 36, midi: 45 }, { beat: 37, midi: 45 }, { beat: 38, midi: 43, len: 2 },
+    { beat: 40, midi: 41 }, { beat: 41, midi: 41 }, { beat: 42, midi: 40 }, { beat: 43, midi: 40 },
+    { beat: 44, midi: 38 }, { beat: 45, midi: 38 }, { beat: 46, midi: 36, len: 2 },
+  ],
+  range: { min: 36, max: 45 },
+});
+
+registerChart({
+  id: 'mary', title: 'メリーさんのひつじ', level: 2,
+  bpm: 95, countInBeats: 4,
+  // ミレドレミミミ レレレ ミソソ / ミレドレミミミミ レレミレド（フレーズ末は2拍）
+  notes: [
+    { beat: 0, midi: 40 }, { beat: 1, midi: 38 }, { beat: 2, midi: 36 }, { beat: 3, midi: 38 },
+    { beat: 4, midi: 40 }, { beat: 5, midi: 40 }, { beat: 6, midi: 40 },
+    { beat: 7, midi: 38 }, { beat: 8, midi: 38 }, { beat: 9, midi: 38 },
+    { beat: 10, midi: 40 }, { beat: 11, midi: 43 }, { beat: 12, midi: 43, len: 2 },
+    { beat: 14, midi: 40 }, { beat: 15, midi: 38 }, { beat: 16, midi: 36 }, { beat: 17, midi: 38 },
+    { beat: 18, midi: 40 }, { beat: 19, midi: 40 }, { beat: 20, midi: 40 }, { beat: 21, midi: 40 },
+    { beat: 22, midi: 38 }, { beat: 23, midi: 38 }, { beat: 24, midi: 40 }, { beat: 25, midi: 38 },
+    { beat: 26, midi: 36, len: 2 },
+  ],
+  range: { min: 36, max: 43 },
+});
+
+registerChart({
+  id: 'kaeru', title: 'かえるのうた', level: 2,
+  bpm: 95, countInBeats: 4,
+  // ドレミファミレド ミファソラソファミ ドドドド ドドレレミミファファ ミレド
+  notes: [
+    { beat: 0, midi: 36 }, { beat: 1, midi: 38 }, { beat: 2, midi: 40 }, { beat: 3, midi: 41 },
+    { beat: 4, midi: 40 }, { beat: 5, midi: 38 }, { beat: 6, midi: 36 },
+    { beat: 7, midi: 40 }, { beat: 8, midi: 41 }, { beat: 9, midi: 43 }, { beat: 10, midi: 45 },
+    { beat: 11, midi: 43 }, { beat: 12, midi: 41 }, { beat: 13, midi: 40 },
+    { beat: 14, midi: 36 }, { beat: 15, midi: 36 }, { beat: 16, midi: 36 }, { beat: 17, midi: 36 },
+    { beat: 18, midi: 36, len: 0.5 }, { beat: 18.5, midi: 36, len: 0.5 },
+    { beat: 19, midi: 38, len: 0.5 }, { beat: 19.5, midi: 38, len: 0.5 },
+    { beat: 20, midi: 40, len: 0.5 }, { beat: 20.5, midi: 40, len: 0.5 },
+    { beat: 21, midi: 41, len: 0.5 }, { beat: 21.5, midi: 41, len: 0.5 },
+    { beat: 22, midi: 40 }, { beat: 23, midi: 38 }, { beat: 24, midi: 36, len: 2 },
+  ],
+  range: { min: 36, max: 45 },
+});
+
+registerChart({
+  id: 'walking', title: 'はじめてのウォーキング', level: 3,
+  bpm: 100, countInBeats: 4,
+  // C(36,43,45,43) F(41,48,50,48) G(43,47,50,47) C(36,43,45,43)。最後にmidi36を2拍
+  // fretboard表示のためfret<=7に収まる音域で書く（C2〜1オクターブ上のC3まで）
+  notes: [
+    { beat: 0, midi: 36 }, { beat: 1, midi: 43 }, { beat: 2, midi: 45 }, { beat: 3, midi: 43 },
+    { beat: 4, midi: 41 }, { beat: 5, midi: 48 }, { beat: 6, midi: 50 }, { beat: 7, midi: 48 },
+    { beat: 8, midi: 43 }, { beat: 9, midi: 47 }, { beat: 10, midi: 50 }, { beat: 11, midi: 47 },
+    { beat: 12, midi: 36 }, { beat: 13, midi: 43 }, { beat: 14, midi: 45 }, { beat: 15, midi: 43 },
+    { beat: 16, midi: 36, len: 2 },
+  ],
+  range: { min: 36, max: 50 },
+});
+
+registerChart({
+  id: 'rock_riff', title: 'ロックのきほん', level: 3,
+  bpm: 110, countInBeats: 4,
+  // E1の8分刻み8発 → G1 → A1 変化のシンプルなロックライン（2周）
+  notes: [
+    { beat: 0, midi: 28, len: 0.5 }, { beat: 0.5, midi: 28, len: 0.5 },
+    { beat: 1, midi: 28, len: 0.5 }, { beat: 1.5, midi: 28, len: 0.5 },
+    { beat: 2, midi: 28, len: 0.5 }, { beat: 2.5, midi: 28, len: 0.5 },
+    { beat: 3, midi: 28, len: 0.5 }, { beat: 3.5, midi: 28, len: 0.5 },
+    { beat: 4, midi: 31 }, { beat: 5, midi: 33 },
+    { beat: 6, midi: 28, len: 0.5 }, { beat: 6.5, midi: 28, len: 0.5 },
+    { beat: 7, midi: 28, len: 0.5 }, { beat: 7.5, midi: 28, len: 0.5 },
+    { beat: 8, midi: 28, len: 0.5 }, { beat: 8.5, midi: 28, len: 0.5 },
+    { beat: 9, midi: 28, len: 0.5 }, { beat: 9.5, midi: 28, len: 0.5 },
+    { beat: 10, midi: 31 }, { beat: 11, midi: 33, len: 2 },
+  ],
+  range: { min: 28, max: 33 },
+});
+
+// ---------------------------------------------------------------------------
+// ゲーム固有コード（games/<id>/game.js）
+// ---------------------------------------------------------------------------
+const GAME_DEF = {
+  meta: { id: 'umebass', title: 'うめベース！', subtitle: 'おとをひいて キャッチしよう' },
+  instruments: ['bass', 'guitar', 'piano'],
+  charts: 'all',
+  noteNaming: 'doremi',
+  theme: {
+    bg: ['#1a1038', '#2a1a58'], laneLine: '#ffffff22', judgeLine: '#ffd34d',
+    text: '#fff7e8', accent: '#ff8fb3',
+    mascot: { enable: true, cheer: ['いいね！', 'その調子！', 'すごい！', '天才や！'] },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 起動（games/<id>/game.js が定義した GAME_DEF を渡して状態機械を開始する）
+// ---------------------------------------------------------------------------
+if (typeof GAME_DEF !== 'undefined' && typeof createRhythmGame === 'function') createRhythmGame(GAME_DEF);
+
+})();
+</script>
+</body>
+</html>

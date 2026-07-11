@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#14092b">
+<title>__GAME_TITLE__</title>
+<style>
+  :root{ color-scheme: dark; }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body{
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #14092b; overflow: hidden;
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+  }
+  body{
+    position: relative;
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Maru Gothic Pro", "Hiragino Kaku Gothic ProN", sans-serif;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #rk-stage{
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #rk-canvas{
+    background: #14092b;
+    touch-action: none;
+    display: block;
+    width: 100%; height: 100%;
+  }
+  #rk-lane-buttons{
+    position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  #rk-lane-buttons button{
+    position: absolute;
+    pointer-events: auto;
+    touch-action: none;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.35);
+    color: #fff7e8;
+    font-weight: 900;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  #rk-overlay{
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+  .rk-screen{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 10px;
+    padding: calc(14px + env(safe-area-inset-top)) 18px calc(14px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    pointer-events: auto;
+    background: linear-gradient(180deg, #1a1038, #2a1a58);
+    color: #fff7e8;
+  }
+  .rk-hidden{ display: none !important; }
+  /* tuner/result はcanvas描画(drawRkTuner/drawRkResultPanel)を見せる必要があるため透過にする。
+     ボタンの操作性は .rk-screen の pointer-events:auto のままでよい（背景が消えるだけ）。 */
+  #rk-tuner, #rk-result{ background: transparent; }
+  .rk-h1{ font-size: 26px; font-weight: 900; margin: 4px 0 0; text-align: center; color: #ffd34d; }
+  .rk-h2{ font-size: 20px; font-weight: 900; margin: 4px 0; text-align: center; }
+  .rk-sub{ font-size: 14px; margin: 0; text-align: center; color: #e6d8ff; }
+  .rk-block{ width: 100%; max-width: 420px; }
+  .rk-label{ font-size: 13px; font-weight: 700; color: #cbb8e0; margin-bottom: 6px; }
+  .rk-chip-row{ display: flex; flex-wrap: wrap; gap: 8px; }
+  .rk-chip{
+    flex: 1 1 auto; min-width: 84px;
+    padding: 12px 10px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #fff7e8; font-size: 15px; font-weight: 700;
+    text-align: center;
+  }
+  .rk-chip.rk-active{ background: #ff8fb3; border-color: #ff8fb3; color: #2a1030; }
+  .rk-song-list{ display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .rk-song{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.06); font-size: 15px; font-weight: 700;
+  }
+  .rk-song.rk-active{ background: rgba(255,211,77,0.22); border-color: #ffd34d; }
+  .rk-song.rk-disabled{ opacity: 0.35; }
+  .rk-song-right{ display: flex; align-items: center; gap: 8px; }
+  .rk-song-stars{ font-size: 13px; color: #ffd34d; }
+  .rk-song-best{ font-size: 12px; color: #ffd34d; white-space: nowrap; }
+  .rk-row{ display: flex; gap: 12px; justify-content: center; width: 100%; max-width: 420px; margin-top: auto; padding-top: 8px; }
+  button{ font-family: inherit; border: none; cursor: pointer; }
+  .rk-btn-primary, .rk-btn-secondary{
+    flex: 1 1 auto; min-height: 56px; border-radius: 20px; font-size: 17px; font-weight: 900;
+    padding: 10px 14px;
+  }
+  .rk-btn-primary{ background: #ff8fb3; color: #2a1030; }
+  .rk-btn-secondary{ background: rgba(255,255,255,0.12); color: #fff7e8; border: 2px solid rgba(255,255,255,0.3); }
+  .rk-corner{ position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 16px; min-height: 44px; }
+  #rk-offset-slider{ width: 100%; height: 40px; }
+  #rk-mic-meter-wrap{ width: 100%; max-width: 340px; }
+  #rk-mic-meter-canvas{ width: 100%; height: 24px; }
+</style>
+</head>
+<body>
+<div id="rk-stage">
+  <canvas id="rk-canvas" width="375" height="667"></canvas>
+  <div id="rk-lane-buttons"></div>
+</div>
+<div id="rk-overlay">
+  <section id="rk-title" class="rk-screen">
+    <h1 class="rk-h1" id="rk-game-title"></h1>
+    <p class="rk-sub" id="rk-game-subtitle"></p>
+    <div class="rk-block">
+      <div class="rk-label">がっき</div>
+      <div class="rk-chip-row" id="rk-instrument-row"></div>
+    </div>
+    <div class="rk-block">
+      <div class="rk-label">モード</div>
+      <div class="rk-chip-row" id="rk-mode-row"></div>
+    </div>
+    <div class="rk-block" style="flex:1 1 auto; min-height:0;">
+      <div class="rk-label">きょく</div>
+      <div class="rk-song-list" id="rk-song-list"></div>
+    </div>
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-settings">せってい</button>
+      <button class="rk-btn-primary" id="rk-btn-start">はじめる</button>
+      <button class="rk-btn-secondary" id="rk-btn-tuner">チューナー</button>
+    </div>
+  </section>
+
+  <section id="rk-settings" class="rk-screen rk-hidden">
+    <h2 class="rk-h2">せってい</h2>
+    <div class="rk-block">
+      <div class="rk-label" id="rk-offset-label">タイミングのずれ調整</div>
+      <input type="range" id="rk-offset-slider" min="-0.3" max="0.3" step="0.01" value="-0.12">
+    </div>
+    <div class="rk-block">
+      <div class="rk-label">おとの よみかた</div>
+      <div class="rk-chip-row" id="rk-naming-row"></div>
+    </div>
+    <div class="rk-row">
+      <button class="rk-btn-primary" id="rk-btn-settings-back">もどる</button>
+    </div>
+  </section>
+
+  <section id="rk-micsetup" class="rk-screen rk-hidden">
+    <h2 class="rk-h2">マイクじゅんび</h2>
+    <p class="rk-sub" id="rk-mic-message">がっきを マイクに ちかづけて おとを だしてね</p>
+    <div id="rk-mic-meter-wrap"><canvas id="rk-mic-meter-canvas" width="280" height="24"></canvas></div>
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-mic-skip">タップであそぶ</button>
+      <button class="rk-btn-primary" id="rk-btn-mic-ok">OK！はじめる</button>
+    </div>
+  </section>
+
+  <section id="rk-tuner" class="rk-screen rk-hidden">
+    <button class="rk-btn-secondary rk-corner" id="rk-btn-tuner-back">もどる</button>
+  </section>
+
+  <section id="rk-result" class="rk-screen rk-hidden">
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-song-select">きょくをえらぶ</button>
+      <button class="rk-btn-primary" id="rk-btn-retry">もういちど</button>
+    </div>
+  </section>
+</div>
+<script>
+'use strict';
+(function(){
+
+/* ==========================================================================
+ * rhythmkit game — single-file canvas rhythm game (build.py 生成物)
+ *
+ * このファイルは build.py が template.html + engine/*.js + instruments/*.js +
+ * charts/*.js + games/<id>/game.js を結合して生成した成果物。直接編集しない
+ * （各ソースを編集して python3 build.py <id> を再実行する）。
+ *
+ * 部品構成:
+ *   template.html            - CSS / canvas・DOM要素 / viewport フィット（このファイル）
+ *   engine/audio_synth.js    - Web Audio 手続き合成（プレビュー音/SFX/iOS unlock）
+ *   engine/pitch_detector.js - マイク→ピッチ検出（自己相関MPM）
+ *   engine/input_router.js   - mic/touch/keyboard を統一入力イベントに正規化
+ *   engine/highway.js        - 落下ノートの縦スクロール描画（canvas）
+ *   engine/judge.js          - タイミング×音程の判定・スコア計算
+ *   engine/hud.js            - スコア/コンボ/進行バー/マイクレベル/チューナー表示
+ *   engine/game_core.js      - レジストリ + 状態機械（boot/title/micSetup/play/result/tuner）
+ *   instruments/*.js         - INSTRUMENT_DEF（楽器ごとのレーン・音域・判定設定）
+ *   charts/*.js               - CHART（曲ごとのノート譜面）
+ *   games/<id>/game.js       - GAME_DEF（テーマ・キャラ・収録曲の選定）
+ *
+ * 新しい楽器/曲の作り方は rhythmkit/README.md を参照。
+ * ========================================================================== */
+
+// ---------------------------------------------------------------------------
+// エンジン（汎用部品）
+// ---------------------------------------------------------------------------
+__ENGINE_JS__
+
+// ---------------------------------------------------------------------------
+// 楽器定義（instruments/*.js）
+// ---------------------------------------------------------------------------
+__INSTRUMENTS_JS__
+
+// ---------------------------------------------------------------------------
+// 曲データ（charts/*.js）
+// ---------------------------------------------------------------------------
+__CHARTS_JS__
+
+// ---------------------------------------------------------------------------
+// ゲーム固有コード（games/<id>/game.js）
+// ---------------------------------------------------------------------------
+__GAME_JS__
+
+// ---------------------------------------------------------------------------
+// 起動（games/<id>/game.js が定義した GAME_DEF を渡して状態機械を開始する）
+// ---------------------------------------------------------------------------
+if (typeof GAME_DEF !== 'undefined' && typeof createRhythmGame === 'function') createRhythmGame(GAME_DEF);
+
+})();
+</script>
+</body>
+</html>
