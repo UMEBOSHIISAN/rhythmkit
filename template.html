@@ -133,12 +133,15 @@
   <section id="rk-settings" class="rk-screen rk-hidden">
     <h2 class="rk-h2">せってい</h2>
     <div class="rk-block">
-      <div class="rk-label" id="rk-offset-label">タイミングのずれ調整</div>
+      <div class="rk-label" id="rk-offset-label">タイミングの ずれあわせ（てどうで）</div>
       <input type="range" id="rk-offset-slider" min="-0.3" max="0.3" step="0.01" value="-0.12">
     </div>
     <div class="rk-block">
       <div class="rk-label">おとの よみかた</div>
       <div class="rk-chip-row" id="rk-naming-row"></div>
+    </div>
+    <div class="rk-block">
+      <button class="rk-btn-secondary" id="rk-btn-calib-start" style="width:100%;">じどうで タイミングあわせ</button>
     </div>
     <div class="rk-row">
       <button class="rk-btn-primary" id="rk-btn-settings-back">もどる</button>
@@ -149,9 +152,20 @@
     <h2 class="rk-h2">マイクじゅんび</h2>
     <p class="rk-sub" id="rk-mic-message">がっきを マイクに ちかづけて おとを だしてね</p>
     <div id="rk-mic-meter-wrap"><canvas id="rk-mic-meter-canvas" width="280" height="24"></canvas></div>
+    <p class="rk-sub" id="rk-mic-detected"></p>
     <div class="rk-row">
       <button class="rk-btn-secondary" id="rk-btn-mic-skip">タップであそぶ</button>
       <button class="rk-btn-primary" id="rk-btn-mic-ok">OK！はじめる</button>
+    </div>
+  </section>
+
+  <section id="rk-calib" class="rk-screen rk-hidden">
+    <h2 class="rk-h2">じどうで タイミングあわせ</h2>
+    <p class="rk-sub" id="rk-calib-message">マイクを じゅんびしてるよ…</p>
+    <p class="rk-sub" id="rk-calib-result"></p>
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-calib-back">もどる</button>
+      <button class="rk-btn-primary rk-hidden" id="rk-btn-calib-retry">もういちど</button>
     </div>
   </section>
 

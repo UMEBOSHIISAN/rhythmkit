@@ -133,12 +133,15 @@
   <section id="rk-settings" class="rk-screen rk-hidden">
     <h2 class="rk-h2">せってい</h2>
     <div class="rk-block">
-      <div class="rk-label" id="rk-offset-label">タイミングのずれ調整</div>
+      <div class="rk-label" id="rk-offset-label">タイミングの ずれあわせ（てどうで）</div>
       <input type="range" id="rk-offset-slider" min="-0.3" max="0.3" step="0.01" value="-0.12">
     </div>
     <div class="rk-block">
       <div class="rk-label">おとの よみかた</div>
       <div class="rk-chip-row" id="rk-naming-row"></div>
+    </div>
+    <div class="rk-block">
+      <button class="rk-btn-secondary" id="rk-btn-calib-start" style="width:100%;">じどうで タイミングあわせ</button>
     </div>
     <div class="rk-row">
       <button class="rk-btn-primary" id="rk-btn-settings-back">もどる</button>
@@ -149,9 +152,20 @@
     <h2 class="rk-h2">マイクじゅんび</h2>
     <p class="rk-sub" id="rk-mic-message">がっきを マイクに ちかづけて おとを だしてね</p>
     <div id="rk-mic-meter-wrap"><canvas id="rk-mic-meter-canvas" width="280" height="24"></canvas></div>
+    <p class="rk-sub" id="rk-mic-detected"></p>
     <div class="rk-row">
       <button class="rk-btn-secondary" id="rk-btn-mic-skip">タップであそぶ</button>
       <button class="rk-btn-primary" id="rk-btn-mic-ok">OK！はじめる</button>
+    </div>
+  </section>
+
+  <section id="rk-calib" class="rk-screen rk-hidden">
+    <h2 class="rk-h2">じどうで タイミングあわせ</h2>
+    <p class="rk-sub" id="rk-calib-message">マイクを じゅんびしてるよ…</p>
+    <p class="rk-sub" id="rk-calib-result"></p>
+    <div class="rk-row">
+      <button class="rk-btn-secondary" id="rk-btn-calib-back">もどる</button>
+      <button class="rk-btn-primary rk-hidden" id="rk-btn-calib-retry">もういちど</button>
     </div>
   </section>
 
@@ -534,7 +548,7 @@ function detectPitchFromBuffer(buf, sampleRate, fmin, fmax) {
   fmin = fmin || 35;
   fmax = fmax || 1000;
   const maxLag = Math.min(buf.length - 1, Math.ceil(sampleRate / fmin));
-  const minLag = Math.max(2, Math.floor(sampleRate / fmax));
+  const minLag = Math.max(2, Math.ceil(sampleRate / fmax));
   if (maxLag <= minLag) return { freq: 0, clarity: 0 };
   const nsdf = computeNSDF(buf, maxLag);
   // fmaxより高い（=lagが短すぎる）ローブはminLag未満として候補から除外する
@@ -582,7 +596,22 @@ const PitchDetector = {
       rafId: null,
       timeBuf: null,
       running: false,
+      starting: false,
+      startPromise: null,
     };
+
+    // getUserMedia成功後にsource/analyser生成が失敗した場合の作りかけリソース解放。
+    // stream自体を渡さず常にstateを見るのは、start()の複数箇所（成功経路の例外・
+    // 明示cleanup呼び出し）から同じ後始末を再利用するため。
+    function cleanupPartialStream() {
+      if (state.source) { try { state.source.disconnect(); } catch (e) {} state.source = null; }
+      state.analyser = null;
+      state.timeBuf = null;
+      if (state.stream) {
+        state.stream.getTracks().forEach((tr) => tr.stop());
+        state.stream = null;
+      }
+    }
 
     function loop() {
       if (!state.running || !state.analyser) return;
@@ -610,12 +639,22 @@ const PitchDetector = {
 
     return {
       start() {
-        return new Promise((resolve) => {
+        // 起動済みは即成功。起動中の再呼出しは新規getUserMediaを走らせず既存Promiseに相乗りする
+        // （stop()→start()の正常な再利用は running=false かつ starting=false から始まるため壊れない）。
+        if (state.running) return Promise.resolve(true);
+        if (state.starting && state.startPromise) return state.startPromise;
+        state.starting = true;
+        state.startPromise = new Promise((resolve) => {
+          const finish = (ok) => {
+            state.starting = false;
+            state.startPromise = null;
+            resolve(ok);
+          };
           try {
-            if (!ctx) { resolve(false); return; }
-            if (typeof window !== 'undefined' && window.isSecureContext === false) { resolve(false); return; }
+            if (!ctx) { finish(false); return; }
+            if (typeof window !== 'undefined' && window.isSecureContext === false) { finish(false); return; }
             if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-              resolve(false);
+              finish(false);
               return;
             }
             navigator.mediaDevices.getUserMedia({
@@ -626,8 +665,8 @@ const PitchDetector = {
                 autoGainControl: false,
               },
             }).then((stream) => {
+              state.stream = stream;
               try {
-                state.stream = stream;
                 state.source = ctx.createMediaStreamSource(stream);
                 state.analyser = ctx.createAnalyser();
                 state.analyser.fftSize = 4096;
@@ -635,25 +674,29 @@ const PitchDetector = {
                 state.source.connect(state.analyser);
                 state.running = true;
                 state.rafId = requestAnimationFrame(loop);
-                resolve(true);
+                finish(true);
               } catch (e) {
-                resolve(false);
+                // 作りかけのsource/analyser/streamを残さない
+                cleanupPartialStream();
+                finish(false);
               }
-            }).catch(() => resolve(false));
+            }).catch(() => {
+              cleanupPartialStream();
+              finish(false);
+            });
           } catch (e) {
-            resolve(false);
+            cleanupPartialStream();
+            finish(false);
           }
         });
+        return state.startPromise;
       },
       stop() {
         state.running = false;
+        state.starting = false;
+        state.startPromise = null;
         if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
-        if (state.source) { try { state.source.disconnect(); } catch (e) {} state.source = null; }
-        if (state.stream) {
-          state.stream.getTracks().forEach((tr) => tr.stop());
-          state.stream = null;
-        }
-        state.analyser = null;
+        cleanupPartialStream();
       },
     };
   },
@@ -1390,6 +1433,7 @@ class JudgeEngine {
  *   drawRkScoreHud(ctx,x,y,score,combo)
  *   drawRkProgressBar(ctx,x,y,w,songTimeSec,totalSec)
  *   drawRkMicMeter(ctx,x,y,w,h,level,levelMin)
+ *   drawRkDetectedNote(ctx,x,y,detected,naming) — play中「いま鳴っている音」表示（v1.2）
  *   drawRkTuner(ctx,canvasW,canvasH,detected,naming)
  *   drawRkResultPanel(ctx,canvasW,canvasH,rank,stats,isWaitMode) -> {panelX,panelY,panelW,panelH}
  *   drawRkConfetti(ctx,canvasW,canvasH,frame) — リザルト表示中だけ呼ぶ決定論パーティクル
@@ -1442,6 +1486,20 @@ function drawRkMicMeter(ctx, x, y, w, h, level, levelMin){
     ctx.fillStyle = (level || 0) >= (levelMin || 0) ? '#8fe0a0' : '#ffb0b0';
     ctx.fill();
   }
+  ctx.restore();
+}
+
+// v1.2: play中(pitchモード)の判定線すぐ上に「いま鳴っている音」を表示する。
+// detected: null（非表示・呼び出し側が2フレーム連続同一丸めmidi/0.5秒アイドルを判定して渡す）
+//   または {midi, match}。match=trueはターゲットとpitch class一致（緑系）、falseは不一致（柔らかい橙系）。
+function drawRkDetectedNote(ctx, x, y, detected, naming){
+  if (!detected) return;
+  const name = rkNoteName(detected.midi, naming);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = detected.match ? '#8fe0a0' : '#ffb677';
+  ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
+  ctx.fillText('いま: ' + name, x, y);
   ctx.restore();
 }
 
@@ -1516,7 +1574,7 @@ function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
   if (!isWaitMode){
     ctx.fillText('パーフェクト ' + stats.perfect, canvasW / 2, py + 120);
     ctx.fillText('グッド ' + stats.good, canvasW / 2, py + 150);
-    ctx.fillText('ミス ' + stats.miss, canvasW / 2, py + 180);
+    ctx.fillText('おしい ' + stats.miss, canvasW / 2, py + 180);
     // 練習寄り: 常にポジティブな締めの一言（ゲームオーバー概念が無いことの明示）
     ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
     ctx.fillStyle = '#ffd34d';
@@ -1588,7 +1646,22 @@ function registerChart(def){ __RK_CHARTS[def.id] = def; }
 function clamp(v, lo, hi){ return v < lo ? lo : (v > hi ? hi : v); }
 function lerp(a, b, t){ return a + (b - a) * t; }
 
-const RK_SCREEN_IDS = ['rk-title', 'rk-settings', 'rk-micsetup', 'rk-tuner', 'rk-result'];
+// 純関数（v1.2 オートキャリブレーション用・vm単体テスト対象。tests/test_calib.js参照）
+function rkMedian(arr){
+  if (!arr || !arr.length) return null;
+  const sorted = arr.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+// deltas: 各tickとオンセットの差分秒(delta = onset - tick)の配列。4サンプル未満はnull（リトライ対象）。
+// offsetSec = -median(deltas) を[-0.3,0.3]にclampする（SPEC v1.2）。
+function rkCalibOffset(deltas){
+  if (!deltas || deltas.length < 4) return null;
+  const med = rkMedian(deltas);
+  return clamp(-med, -0.3, 0.3);
+}
+
+const RK_SCREEN_IDS = ['rk-title', 'rk-settings', 'rk-micsetup', 'rk-calib', 'rk-tuner', 'rk-result'];
 const RK_DEFAULT_OFFSET_SEC = -0.12;
 
 class RhythmGame {
@@ -1610,6 +1683,22 @@ class RhythmGame {
     this._tunerDetected = null;
     this.inputRouter = null; // instrument確定後に _setupInputRouter() で生成する（micパラメータが楽器依存のため）
     this._laneButtonEls = null;
+    // v1.2: play中HUDの「いま鳴っている音」表示（2フレーム連続同一丸めmidiで確定・0.5秒無イベントで消える）
+    this._detectedNote = null;
+    this._detectedCandidateMidi = null;
+    this._detectedCandidateCount = 0;
+    this._lastPitchEventAt = null; // ev.t（performance.now()/1000）。0.5秒アイドル判定に使う
+    // v1.2: micSetup画面の検出音名表示（チューナーと同じclarity条件）
+    this._micSetupDetected = null;
+    // v1.2: オートキャリブレーション実行中の状態
+    this._calibActive = false;
+    this._calibDeltas = [];
+    this._calibTicks = [];
+    this._calibUsedTicks = []; // tickごとに1オンセットまでの使用済み管理（indexはthis._calibTicksと対応）
+    this._calibLastPitchAt = null;
+    // v1.2: プレイrAFループの世代トークン。_startPlay()を跨いだ古いループが自然停止するようにする
+    // （連打二重タップ等で_startPlay()が複数回呼ばれてもrAFループが複製されない）。
+    this._tickGen = 0;
   }
 
   // instrument.mic を渡してInputRouterを（再）生成する。楽器を変えるたびに呼び直す前提。
@@ -1627,10 +1716,47 @@ class RhythmGame {
   // --- 起動 ---
   boot(){
     this._bindStaticEvents();
+    this._restoreOptions();
     this.selectedInstrumentId = this.gameDef.instruments[0] || null;
     const charts = this._selectableCharts();
     this.selectedChartId = charts.length ? charts[0].id : null;
     this._toTitle();
+  }
+
+  // --- 設定の永続化（v1.2・localStorage key=rk_opt_<gameId>） ---
+  _optionsKey(){
+    return 'rk_opt_' + this.gameDef.meta.id;
+  }
+  _saveOptions(){
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(this._optionsKey(), JSON.stringify({
+        offsetSec: this.offsetSec, noteNaming: this.naming,
+      }));
+    } catch (e) {
+      // localStorage不可環境（file://・プライベートモード等）は無視
+    }
+  }
+  // _bindStaticEvents() でスライダー既定値を読んだ直後に呼ぶ。保存値があれば上書きする。
+  _restoreOptions(){
+    let saved = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(this._optionsKey());
+        if (raw) saved = JSON.parse(raw);
+      }
+    } catch (e) {
+      saved = null;
+    }
+    if (!saved) return;
+    if (typeof saved.offsetSec === 'number'){
+      this.offsetSec = clamp(saved.offsetSec, -0.3, 0.3);
+      const slider = document.getElementById('rk-offset-slider');
+      if (slider) slider.value = String(this.offsetSec);
+    }
+    if (saved.noteNaming === 'doremi' || saved.noteNaming === 'abc'){
+      this.naming = saved.noteNaming;
+    }
   }
 
   _now(){
@@ -1667,11 +1793,17 @@ class RhythmGame {
     on('rk-btn-mic-skip', () => this._onMicSkip());
     on('rk-btn-retry', () => this._startPlay());
     on('rk-btn-song-select', () => this._toTitle());
+    on('rk-btn-calib-start', () => this._toCalib());
+    on('rk-btn-calib-back', () => this._onCalibBack());
+    on('rk-btn-calib-retry', () => this._startCalibRun());
 
     const slider = document.getElementById('rk-offset-slider');
     if (slider){
       this.offsetSec = parseFloat(slider.value) || RK_DEFAULT_OFFSET_SEC;
-      slider.addEventListener('input', (e) => { this.offsetSec = parseFloat(e.target.value); });
+      slider.addEventListener('input', (e) => {
+        this.offsetSec = parseFloat(e.target.value);
+        this._saveOptions();
+      });
     }
 
     const onViewportChange = () => {
@@ -1790,6 +1922,7 @@ class RhythmGame {
         this.naming = key;
         this._renderNamingChips(rowId);
         if (this.highway) this.highway.setNaming(this.naming);
+        this._saveOptions();
       });
       row.appendChild(btn);
     });
@@ -1823,7 +1956,10 @@ class RhythmGame {
     try {
       if (typeof localStorage === 'undefined' || !chartId || !instrumentId) return null;
       const v = localStorage.getItem(this._bestScoreKey(chartId, instrumentId, modeKey));
-      return v != null ? parseInt(v, 10) : null;
+      if (v == null || v.trim() === '') return null;
+      // 壊れた/改ざんされたlocalStorage値（NaN・負値・小数）で🏆NaN表示や以後の更新不能を防ぐ
+      const n = Number(v);
+      return (Number.isFinite(n) && Number.isInteger(n) && n >= 0) ? n : null;
     } catch (e) {
       return null;
     }
@@ -1872,6 +2008,7 @@ class RhythmGame {
   async _toMicSetup(){
     this.mode = 'micSetup';
     this._micLevel = 0;
+    this._micSetupDetected = null;
     const msgEl = document.getElementById('rk-mic-message');
     if (msgEl) msgEl.textContent = 'がっきを マイクに ちかづけて おとを だしてね';
     this._showScreen('rk-micsetup');
@@ -1888,11 +2025,17 @@ class RhythmGame {
     const canvas = document.getElementById('rk-mic-meter-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    const detectedEl = document.getElementById('rk-mic-detected');
     const step = () => {
       if (this.mode !== 'micSetup') return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const levelMin = (this.instrument && this.instrument.mic && this.instrument.mic.levelMin) || 0;
       drawRkMicMeter(ctx, 4, 2, canvas.width - 8, canvas.height - 4, this._micLevel, levelMin);
+      if (detectedEl){
+        detectedEl.textContent = this._micSetupDetected
+          ? rkNoteName(this._micSetupDetected.midi, this.naming) + ' が きこえたよ！'
+          : '';
+      }
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -1906,6 +2049,124 @@ class RhythmGame {
     if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
     this.judgeMode = 'lane';
     this._startPlay();
+  }
+
+  // --- じどうタイミングあわせ（calib・v1.2） ---
+  // 選択中楽器のmicでstartMic→90bpmで4拍カウントイン+8拍→各tickとオンセットの差から
+  // offsetSecを推定する。設定画面から直行・「もどる」で設定に戻る。
+  _toCalib(){
+    this.mode = 'calib';
+    this._showScreen('rk-calib');
+    this._startCalibRun();
+  }
+
+  _onCalibBack(){
+    this._calibActive = false;
+    if (typeof metronome !== 'undefined' && metronome.stop) metronome.stop();
+    if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
+    this._toSettings();
+  }
+
+  async _startCalibRun(){
+    if (typeof unlock === 'function') unlock();
+    const msgEl = document.getElementById('rk-calib-message');
+    const resultEl = document.getElementById('rk-calib-result');
+    const retryBtn = document.getElementById('rk-btn-calib-retry');
+    if (retryBtn) retryBtn.classList.add('rk-hidden');
+    if (resultEl) resultEl.textContent = '';
+    if (msgEl) msgEl.textContent = 'マイクを じゅんびしてるよ…';
+
+    const instrument = __RK_INSTRUMENTS[this.selectedInstrumentId];
+    this._setupInputRouter(instrument);
+    const ok = (this.inputRouter && this.inputRouter.startMic) ? await this.inputRouter.startMic() : false;
+    if (this.mode !== 'calib') return; // 待っている間に画面遷移していたら何もしない
+    if (!ok){
+      if (msgEl) msgEl.textContent = 'マイクが つかえないので タイミングあわせは できないよ';
+      return;
+    }
+
+    this._calibActive = true;
+    this._calibDeltas = [];
+    this._calibTicks = [];
+    this._calibUsedTicks = [];
+    this._calibLastPitchAt = null;
+    if (msgEl) msgEl.textContent = 'カチッに あわせて どのおとでもいいから 1かいずつ ひいてね';
+
+    const CALIB_BPM = 90;
+    const COUNT_IN_BEATS = 4;
+    const MAIN_BEATS = 8;
+    const TOTAL_BEATS = COUNT_IN_BEATS + MAIN_BEATS;
+    metronome.start(CALIB_BPM, (beat, tickTime) => {
+      if (!this._calibActive) return;
+      if (beat >= COUNT_IN_BEATS) this._calibTicks.push(tickTime); // 本編8拍分だけ収集対象にする
+      if (beat >= TOTAL_BEATS - 1){
+        metronome.stop();
+        const secPerBeat = 60 / CALIB_BPM;
+        // 最終tickの音が鳴り切り、ユーザーがそれに合わせて弾き終える猶予を待ってから集計する
+        setTimeout(() => this._finishCalibRun(), (secPerBeat + 0.4) * 1000);
+      }
+    });
+  }
+
+  // pitchイベントからオンセットを検出する。「直前のpitchイベントから200ms以上あいた後の
+  // 最初のイベント」をオンセットとみなす（ev.t=performance.now()/1000同士の相対比較のみに使う）。
+  // tickTimeはAudioContext.currentTime基準で、ev.t（wall clock）とはエポックが異なり直接比較
+  // できないため、delta計算はオンセット検出と同じ瞬間のthis._now()（ctx.currentTime）で行う。
+  _handleCalibPitch(ev){
+    if (!this._calibActive || ev.midi == null) return;
+    // チューナー/micSetupと同じclarity/level品質ゲート（ノイズ・弱い雑音をオンセット扱いしない）
+    const instrument = this.instrument || __RK_INSTRUMENTS[this.selectedInstrumentId] || {};
+    const mic = instrument.mic || {};
+    const clarityMin = mic.clarityMin != null ? mic.clarityMin : 0.83;
+    const levelMin = mic.levelMin != null ? mic.levelMin : 0;
+    if (ev.clarity == null || ev.clarity < clarityMin) return;
+    if (ev.level != null && ev.level < levelMin) return;
+    const isOnset = this._calibLastPitchAt == null || (ev.t - this._calibLastPitchAt) >= 0.2;
+    this._calibLastPitchAt = ev.t;
+    if (!isOnset) return;
+    const audioNow = this._now();
+    // 複数tickの±0.4s窓に入る場合は最近傍のtickに割り当て、tickごとに1オンセットまでとする
+    let bestIdx = -1;
+    let bestAbsDelta = Infinity;
+    for (let i = 0; i < this._calibTicks.length; i++){
+      if (this._calibUsedTicks[i]) continue;
+      const delta = audioNow - this._calibTicks[i];
+      const absDelta = Math.abs(delta);
+      if (absDelta <= 0.4 && absDelta < bestAbsDelta){
+        bestAbsDelta = absDelta;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx >= 0){
+      this._calibUsedTicks[bestIdx] = true;
+      this._calibDeltas.push(audioNow - this._calibTicks[bestIdx]);
+    }
+  }
+
+  _finishCalibRun(){
+    if (this.mode !== 'calib') return;
+    this._calibActive = false;
+    if (typeof metronome !== 'undefined' && metronome.stop) metronome.stop();
+    if (this.inputRouter && this.inputRouter.stopMic) this.inputRouter.stopMic();
+    const msgEl = document.getElementById('rk-calib-message');
+    const resultEl = document.getElementById('rk-calib-result');
+    const retryBtn = document.getElementById('rk-btn-calib-retry');
+    const offset = rkCalibOffset(this._calibDeltas);
+    if (offset == null){
+      if (msgEl) msgEl.textContent = 'うまく きこえなかった… もういちど';
+      if (resultEl) resultEl.textContent = '';
+      if (retryBtn) retryBtn.classList.remove('rk-hidden');
+      return;
+    }
+    this.offsetSec = offset;
+    this._saveOptions();
+    const slider = document.getElementById('rk-offset-slider');
+    if (slider) slider.value = String(offset);
+    if (msgEl) msgEl.textContent = '';
+    if (resultEl) resultEl.textContent = 'ずれ ' + Math.abs(offset).toFixed(2) + 'びょう → あわせたよ！';
+    if (retryBtn) retryBtn.classList.add('rk-hidden');
+    // 結果を少し見せてから自動で設定画面へ戻る（子供に追加タップを要求しない）
+    setTimeout(() => { if (this.mode === 'calib') this._toSettings(); }, 1600);
   }
 
   // --- play ---
@@ -1931,6 +2192,11 @@ class RhythmGame {
       this.selectedChart.notes, this.selectedChart.bpm, this.instrument,
       this.judgeMode, this.isWaitMode, this.offsetSec
     );
+    // v1.2: 前回プレイの「いま鳴っている音」表示が新しい曲に持ち越されないようリセットする
+    this._detectedNote = null;
+    this._detectedCandidateMidi = null;
+    this._detectedCandidateCount = 0;
+    this._lastPitchEventAt = null;
 
     this._teardownLaneButtons();
     if (this.judgeMode === 'lane' && this.inputRouter){
@@ -1955,7 +2221,8 @@ class RhythmGame {
     // targetSecにクランプする（実時間を無条件に進めるとノートが判定線を通過してしまうため）。
     this._songClock = -(countInBeats * secPerBeat);
     this._lastFrameTime = this._now();
-    this._tick();
+    this._tickGen++;
+    this._tick(this._tickGen);
   }
 
   // 曲内経過秒の単一ソース。waitモードは「正解待ちで停止するクロック」、
@@ -1999,8 +2266,8 @@ class RhythmGame {
     return runners.length ? runners[runners.length - 1].targetSec : 0;
   }
 
-  _tick(){
-    if (this.mode !== 'play') return;
+  _tick(gen){
+    if (this.mode !== 'play' || gen !== this._tickGen) return;
     const now = this._now();
     const dt = Math.max(0, now - this._lastFrameTime);
     this._lastFrameTime = now;
@@ -2028,7 +2295,7 @@ class RhythmGame {
       this._toResult();
       return;
     }
-    requestAnimationFrame(() => this._tick());
+    requestAnimationFrame(() => this._tick(gen));
   }
 
   // judge.runners[index] を FingerBoard.draw が要求する {laneIndex, fret, midi} に解決する。
@@ -2057,6 +2324,12 @@ class RhythmGame {
     if (this.judgeMode === 'pitch'){
       const levelMin = (this.instrument.mic && this.instrument.mic.levelMin) || 0;
       drawRkMicMeter(ctx, this.highway.w - 132, 12, 120, 14, this._micLevel, levelMin);
+      // 0.5秒pitchイベントが無ければ表示を消す（ev.tと同じwall clock系列=performance.now()で判定）
+      if (this._detectedNote && (this._lastPitchEventAt == null
+          || (performance.now() / 1000 - this._lastPitchEventAt) > 0.5)){
+        this._detectedNote = null;
+      }
+      drawRkDetectedNote(ctx, this.highway.w / 2, this.highway.judgeY - 16, this._detectedNote, this.naming);
       if (this.fingerboard){
         const current = this._fingerboardPos(this.judge.cursor);
         const next = this._fingerboardPos(this._nextPendingIndex(this.judge.cursor + 1));
@@ -2133,6 +2406,7 @@ class RhythmGame {
       // play中のマイクレベル表示がmicSetup時の値のまま凍結しないよう、モードに関わらず常に更新する
       this._micLevel = ev.level || 0;
       if (this.mode === 'micSetup'){
+        this._updateMicSetupDetected(ev);
         return;
       }
       if (this.mode === 'tuner'){
@@ -2142,6 +2416,13 @@ class RhythmGame {
         this._tunerDetected = (ev.clarity != null && ev.clarity >= clarityMin)
           ? { midi: ev.midi, cents: ev.cents } : null;
         return;
+      }
+      if (this.mode === 'calib'){
+        this._handleCalibPitch(ev);
+        return;
+      }
+      if (this.mode === 'play' && this.judgeMode === 'pitch'){
+        this._updatePlayDetectedNote(ev);
       }
     }
     if (this.mode !== 'play' || !this.judge) return;
@@ -2156,6 +2437,46 @@ class RhythmGame {
       // れんしゅうモードの正解音・リズムモードのヒット音（自分が弾いた音の代わりにもなる）
       if (typeof playNote === 'function') playNote(result.runner.note.midi, { patch: this.instrument.synthPatch });
       this._maybeCheer();
+    }
+  }
+
+  // micSetup画面の検出音名表示を更新する（v1.2・チューナーと同じclarity条件）。
+  _updateMicSetupDetected(ev){
+    const instrument = this.instrument || __RK_INSTRUMENTS[this.selectedInstrumentId] || {};
+    const mic = instrument.mic || {};
+    const clarityMin = mic.clarityMin != null ? mic.clarityMin : 0.83;
+    this._micSetupDetected = (ev.midi != null && ev.clarity != null && ev.clarity >= clarityMin)
+      ? { midi: ev.midi } : null;
+  }
+
+  // judge.cursor位置の「次に弾くべきノート」のmidi（無ければnull）。検出音のmatch判定に使う。
+  _currentTargetMidi(){
+    if (!this.judge) return null;
+    const runner = this.judge.runners[this.judge.cursor];
+    return runner ? runner.note.midi : null;
+  }
+
+  // play中(pitchモード)のHUD「いま鳴っている音」表示を更新する（v1.2）。
+  // 2フレーム連続で同じ丸めmidiのときだけ表示を更新する（チラつき防止）。
+  // 0.5秒イベントが無ければ消す処理は描画側（_drawPlayFrame）で行う。
+  _updatePlayDetectedNote(ev){
+    if (ev.midi == null){
+      this._detectedCandidateMidi = null;
+      this._detectedCandidateCount = 0;
+      return;
+    }
+    this._lastPitchEventAt = ev.t;
+    if (ev.midi === this._detectedCandidateMidi){
+      this._detectedCandidateCount++;
+    } else {
+      this._detectedCandidateMidi = ev.midi;
+      this._detectedCandidateCount = 1;
+    }
+    if (this._detectedCandidateCount >= 2){
+      const targetMidi = this._currentTargetMidi();
+      const match = targetMidi != null
+        && rkPitchMatches(targetMidi, ev.midi, this.instrument.pitchTolerance);
+      this._detectedNote = { midi: ev.midi, match };
     }
   }
 
@@ -2550,7 +2871,7 @@ const GAME_DEF = {
   theme: {
     bg: ['#1a1038', '#2a1a58'], laneLine: '#ffffff22', judgeLine: '#ffd34d',
     text: '#fff7e8', accent: '#ff8fb3',
-    mascot: { enable: true, cheer: ['いいね！', 'その調子！', 'すごい！', '天才や！'] },
+    mascot: { enable: true, cheer: ['いいね！', 'そのちょうし！', 'すごい！', 'てんさいや！'] },
   },
 };
 

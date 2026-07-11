@@ -11,6 +11,7 @@
  *   drawRkScoreHud(ctx,x,y,score,combo)
  *   drawRkProgressBar(ctx,x,y,w,songTimeSec,totalSec)
  *   drawRkMicMeter(ctx,x,y,w,h,level,levelMin)
+ *   drawRkDetectedNote(ctx,x,y,detected,naming) — play中「いま鳴っている音」表示（v1.2）
  *   drawRkTuner(ctx,canvasW,canvasH,detected,naming)
  *   drawRkResultPanel(ctx,canvasW,canvasH,rank,stats,isWaitMode) -> {panelX,panelY,panelW,panelH}
  *   drawRkConfetti(ctx,canvasW,canvasH,frame) — リザルト表示中だけ呼ぶ決定論パーティクル
@@ -63,6 +64,20 @@ function drawRkMicMeter(ctx, x, y, w, h, level, levelMin){
     ctx.fillStyle = (level || 0) >= (levelMin || 0) ? '#8fe0a0' : '#ffb0b0';
     ctx.fill();
   }
+  ctx.restore();
+}
+
+// v1.2: play中(pitchモード)の判定線すぐ上に「いま鳴っている音」を表示する。
+// detected: null（非表示・呼び出し側が2フレーム連続同一丸めmidi/0.5秒アイドルを判定して渡す）
+//   または {midi, match}。match=trueはターゲットとpitch class一致（緑系）、falseは不一致（柔らかい橙系）。
+function drawRkDetectedNote(ctx, x, y, detected, naming){
+  if (!detected) return;
+  const name = rkNoteName(detected.midi, naming);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = detected.match ? '#8fe0a0' : '#ffb677';
+  ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
+  ctx.fillText('いま: ' + name, x, y);
   ctx.restore();
 }
 
@@ -137,7 +152,7 @@ function drawRkResultPanel(ctx, canvasW, canvasH, rank, stats, isWaitMode){
   if (!isWaitMode){
     ctx.fillText('パーフェクト ' + stats.perfect, canvasW / 2, py + 120);
     ctx.fillText('グッド ' + stats.good, canvasW / 2, py + 150);
-    ctx.fillText('ミス ' + stats.miss, canvasW / 2, py + 180);
+    ctx.fillText('おしい ' + stats.miss, canvasW / 2, py + 180);
     // 練習寄り: 常にポジティブな締めの一言（ゲームオーバー概念が無いことの明示）
     ctx.font = 'bold 15px "Hiragino Maru Gothic ProN", sans-serif';
     ctx.fillStyle = '#ffd34d';

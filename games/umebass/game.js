@@ -6,6 +6,6 @@ const GAME_DEF = {
   theme: {
     bg: ['#1a1038', '#2a1a58'], laneLine: '#ffffff22', judgeLine: '#ffd34d',
     text: '#fff7e8', accent: '#ff8fb3',
-    mascot: { enable: true, cheer: ['いいね！', 'その調子！', 'すごい！', '天才や！'] },
+    mascot: { enable: true, cheer: ['いいね！', 'そのちょうし！', 'すごい！', 'てんさいや！'] },
   },
 };

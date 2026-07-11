@@ -94,7 +94,7 @@ function detectPitchFromBuffer(buf, sampleRate, fmin, fmax) {
   fmin = fmin || 35;
   fmax = fmax || 1000;
   const maxLag = Math.min(buf.length - 1, Math.ceil(sampleRate / fmin));
-  const minLag = Math.max(2, Math.floor(sampleRate / fmax));
+  const minLag = Math.max(2, Math.ceil(sampleRate / fmax));
   if (maxLag <= minLag) return { freq: 0, clarity: 0 };
   const nsdf = computeNSDF(buf, maxLag);
   // fmaxより高い（=lagが短すぎる）ローブはminLag未満として候補から除外する
@@ -142,7 +142,22 @@ const PitchDetector = {
       rafId: null,
       timeBuf: null,
       running: false,
+      starting: false,
+      startPromise: null,
     };
+
+    // getUserMedia成功後にsource/analyser生成が失敗した場合の作りかけリソース解放。
+    // stream自体を渡さず常にstateを見るのは、start()の複数箇所（成功経路の例外・
+    // 明示cleanup呼び出し）から同じ後始末を再利用するため。
+    function cleanupPartialStream() {
+      if (state.source) { try { state.source.disconnect(); } catch (e) {} state.source = null; }
+      state.analyser = null;
+      state.timeBuf = null;
+      if (state.stream) {
+        state.stream.getTracks().forEach((tr) => tr.stop());
+        state.stream = null;
+      }
+    }
 
     function loop() {
       if (!state.running || !state.analyser) return;
@@ -170,12 +185,22 @@ const PitchDetector = {
 
     return {
       start() {
-        return new Promise((resolve) => {
+        // 起動済みは即成功。起動中の再呼出しは新規getUserMediaを走らせず既存Promiseに相乗りする
+        // （stop()→start()の正常な再利用は running=false かつ starting=false から始まるため壊れない）。
+        if (state.running) return Promise.resolve(true);
+        if (state.starting && state.startPromise) return state.startPromise;
+        state.starting = true;
+        state.startPromise = new Promise((resolve) => {
+          const finish = (ok) => {
+            state.starting = false;
+            state.startPromise = null;
+            resolve(ok);
+          };
           try {
-            if (!ctx) { resolve(false); return; }
-            if (typeof window !== 'undefined' && window.isSecureContext === false) { resolve(false); return; }
+            if (!ctx) { finish(false); return; }
+            if (typeof window !== 'undefined' && window.isSecureContext === false) { finish(false); return; }
             if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-              resolve(false);
+              finish(false);
               return;
             }
             navigator.mediaDevices.getUserMedia({
@@ -186,8 +211,8 @@ const PitchDetector = {
                 autoGainControl: false,
               },
             }).then((stream) => {
+              state.stream = stream;
               try {
-                state.stream = stream;
                 state.source = ctx.createMediaStreamSource(stream);
                 state.analyser = ctx.createAnalyser();
                 state.analyser.fftSize = 4096;
@@ -195,25 +220,29 @@ const PitchDetector = {
                 state.source.connect(state.analyser);
                 state.running = true;
                 state.rafId = requestAnimationFrame(loop);
-                resolve(true);
+                finish(true);
               } catch (e) {
-                resolve(false);
+                // 作りかけのsource/analyser/streamを残さない
+                cleanupPartialStream();
+                finish(false);
               }
-            }).catch(() => resolve(false));
+            }).catch(() => {
+              cleanupPartialStream();
+              finish(false);
+            });
           } catch (e) {
-            resolve(false);
+            cleanupPartialStream();
+            finish(false);
           }
         });
+        return state.startPromise;
       },
       stop() {
         state.running = false;
+        state.starting = false;
+        state.startPromise = null;
         if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
-        if (state.source) { try { state.source.disconnect(); } catch (e) {} state.source = null; }
-        if (state.stream) {
-          state.stream.getTracks().forEach((tr) => tr.stop());
-          state.stream = null;
-        }
-        state.analyser = null;
+        cleanupPartialStream();
       },
     };
   },

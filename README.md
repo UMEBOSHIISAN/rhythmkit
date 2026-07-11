@@ -1,5 +1,7 @@
 # rhythmkit — 落ち音符・楽器学習ゲーム基盤
 
+> **English**: [README.en.md](README.en.md)
+
 > ビートマニア式に音符が落ちてきて、**本物の楽器の音をマイクで拾って**正しい音程を弾くと当たる、子供向け楽器学習ゲームの基盤。
 > iPhone Safari 動作・単一HTML・外部参照ゼロ・依存ゼロ。第1弾ゲームは「うめベース！」（ベース学習）。
 > 契約の正本は [SPEC.md](SPEC.md)。
@@ -12,7 +14,9 @@
 - **リズムモード**: 通常の音ゲー判定（PERFECT/GOOD/おしい！・コンボ・ランクS〜C）。**ゲームオーバーなし** — 必ず最後まで弾けてリザルトはいつもポジティブ（練習が主目的の設計）
 - **チューナーモード**: 検出音名+セントメーター表示。楽器のチューニングに使える
 - **押さえ位置ガイド**（v1.1）: 判定線の下にフレットボード図（ピアノは鍵盤図）を常時表示。今弾く場所=脈動ドット（フレット番号入り・開放弦は「かいほうげん」）、次の音=ゴーストドット。弦の色は上のレーンと同色
-- ベストスコア🏆保存（localStorage）・コンボ応援・リザルト紙吹雪
+- **検出音のリアルタイム表示**（v1.2）: 「いま: ラ」— 弾いた音が合ってれば緑・違えば橙で常時表示。間違えた時に「何を弾いてしまったか」が見える学習フィードバック
+- **タイミング自動あわせ**（v1.2）: メトロノームに合わせて8回弾くだけでマイク遅延を自動計測・補正（設定画面から。手動スライダーも併存）
+- ベストスコア🏆保存・設定の永続化（localStorage）・コンボ応援・リザルト紙吹雪
 - 入力は3系統: **マイク実演奏**（ピッチ検出・ベースの最低音E1=41.2Hzまで対応）/ 画面タップ / キーボード（開発用）
 - マイクが使えない環境では自動でタップ演奏にフォールバック
 - **プライバシー**: マイク音声は端末内でピッチ解析されるだけで、録音・保存・送信は一切しない（本アプリは外部通信ゼロ。`grep "http" dist/` で検証可能）
@@ -46,13 +50,17 @@ cd rhythmkit
 python3 build.py umebass        # → dist/umebass/index.html（96KB・単一ファイル）
 ```
 
+- 必要なのは Python 3 だけ（標準ライブラリのみ・追加パッケージ不要）。npm/node はテスト実行時のみ
+- `umebass` は **game_id**（= `games/` 配下のディレクトリ名）。`games/mygame/game.js` を作れば `python3 build.py mygame` でビルドできる
+
 - Macで開くだけならダブルクリックでOK（マイクはfile://では使えないのでタップ演奏になる）
 - **iPhoneでマイクを使うには HTTPS 配信が必須**（getUserMediaの仕様）。pages.dev等に置く
 - 検証: `node tests/test_pitch.js && node tests/test_content.js && node tests/test_smoke_judge.js`
 
 ## 新しい曲を足す（5分）
 
-`charts/charts_basic.js` に1ブロック追記（または新ファイル `charts/charts_xxx.js`。ファイル追加だけでbuildが拾う）:
+`charts/charts_basic.js` に1ブロック追記（または `charts/` 直下に新ファイル `charts_xxx.js` を作るだけでbuildが拾う）。
+`registerChart` / `registerInstrument` は**エンジンが提供するグローバル関数**（import/require 不要。build.py が全ソースを1つのHTMLに結合する方式）:
 
 ```js
 registerChart({
@@ -86,7 +94,7 @@ const INSTRUMENT_UKULELE = {
   ],
   midiRange: { min: 60, max: 81 },
   mic: { fmin: 200, fmax: 1200, clarityMin: 0.83, levelMin: 0.01 },
-  noteToLane(midi) { /* midi → {laneIndex, fret} を返す（bass.jsを写経） */ },
+  noteToLane(midi) { /* midi → {laneIndex, fret} を返す（instruments/bass.js の同関数を写経して調整） */ },
   pitchTolerance: 'pitchClass',   // オクターブ違い許容（'exact'で厳密）
   synthPatch: 'guitar',           // プレビュー音色（audio_synth.jsのキー。新音色はSYNTH_PATCHESに追加）
 };
@@ -120,12 +128,13 @@ node tests/test_waitclock.js    # れんしゅうモードのクロック停止/
 node tests/test_boot_smoke.js   # ビルド生成物のDOMスタブ起動スモーク
 ```
 
-## 検証状態（2026-07-11 v1.1）
+## 検証状態（2026-07-11 v1.2）
 
 - ピッチ検出精度: 41.2/55/110/220Hz 合成波で誤差ほぼ0Hz・clarity 1.0
 - コンテンツ整合: 3楽器×10曲717ノートの写像全PASS（フレットボード表示域 fret≤7 保証）
-- 判定ロジック17項目・waitクロック5項目・起動スモーク7項目 全PASS
-- 決定論ビルド: 2回連続sha256一致（96KB単一HTML）
+- 判定ロジック17項目・waitクロック5項目・キャリブレーション13項目・起動スモーク7項目 全PASS
+- 決定論ビルド: 2回連続sha256一致（106KB単一HTML）
+- 独立コード監査済み（多重startガード・NaN防御・二重rAF防止等の指摘を修正反映）
 - **iPhone実機のマイク判定は実機テスト待ち**（合成波検証は済・実マイクの部屋鳴り/弦のミュート具合は実機でしか分からない）
 
 ## License
